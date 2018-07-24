@@ -22,7 +22,7 @@ func NewChild(name string, args ...string) *ChildProcess {
 }
 
 // Clone child process.
-func CloneChild(o *ChildProcess) *ChildProcess {
+func (o *ChildProcess) CloneChild() *ChildProcess {
 	co := cmd.NewCmdOptions(cmd.Options{false, true}, o.Name, o.Args...)
 	c := &ChildProcess{*co, DEFAULT_DELAY_START, DEFAULT_RETRY_TIMES}
 	c.SetDir(o.Dir)

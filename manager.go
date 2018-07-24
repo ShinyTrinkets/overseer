@@ -92,11 +92,101 @@ func (ovr *Overseer) Supervise(id string) {
 	c := ovr.procs[id]
 	ovr.lock.Unlock()
 
+	delayStart := c.DelayStart
+	retryTimes := c.RetryTimes
+
 	log.Info().
 		Str("Proc", id).Str("Dir", c.Dir).
-		Uint("DelayStart", c.DelayStart).
-		Uint("RetryTimes", c.RetryTimes).
+		Uint("DelayStart", delayStart).
+		Uint("RetryTimes", retryTimes).
 		Msg("Start overseeing process")
+
+	for {
+		if ovr.stopping {
+			break
+		}
+		if delayStart > 0 {
+			time.Sleep(time.Duration(delayStart) * time.Millisecond)
+		}
+
+		// Async start
+		c.Start()
+
+		log.Debug().Str("Proc", id).Msg("Start process")
+
+		// Check PID from time to time, if it hasn't been killed
+		// by an external signal, or from an internal error
+		go func() {
+			time.Sleep(2 * TIME_UNIT)
+			pid := c.Status().PID
+			ticker := time.NewTicker(4 * TIME_UNIT)
+			for range ticker.C {
+				err := syscall.Kill(pid, syscall.Signal(0))
+				if err != nil {
+					log.Debug().Str("Proc", id).Err(err).Msg("Process has died")
+					break
+				}
+			}
+		}()
+
+		// Process each line of STDOUT
+		go func() {
+			for line := range c.Stdout {
+				if ovr.stopping {
+					break
+				}
+				stat := c.Status()
+				if stat.Complete || stat.Exit > -1 {
+					break
+				}
+				log.Debug().Msg(line)
+			}
+		}()
+
+		// Process each line of STDERR
+		go func() {
+			for line := range c.Stderr {
+				if ovr.stopping {
+					break
+				}
+				stat := c.Status()
+				if stat.Complete || stat.Exit > -1 {
+					break
+				}
+				log.Debug().Msg(line)
+			}
+		}()
+
+		// Block and wait for process to finish
+		stat := <-c.Start()
+
+		// If the process didn't have any failures
+		// Exit normally, no need to retry
+		if stat.Exit == 0 || stat.Error == nil {
+			break
+		}
+
+		if ovr.stopping {
+			break
+		}
+
+		retryTimes--
+
+		if retryTimes < 1 {
+			log.Warn().Str("Proc", id).Err(stat.Error).Msgf("Process exited abnormally. Stopped.")
+			c.Stop() // just to make sure the status is updated
+			break
+		} else {
+			log.Warn().Str("Proc", id).Err(stat.Error).
+				Msgf("Process exited abnormally. Restarting [%d]", retryTimes+1)
+		}
+
+		ovr.lock.Lock()
+		delete(ovr.procs, id)
+		c = c.CloneChild()
+		ovr.procs[id] = c
+		ovr.lock.Unlock()
+	}
 
 	c.Stop() // just to make sure the status is updated
 	log.Info().Str("Proc", id).Msg("Stop overseeing process")

@@ -2,7 +2,7 @@ package overseer
 
 import (
 	"testing"
-	// "time"
+	"time"
 )
 
 func TestSimpleOverseer(t *testing.T) {
@@ -34,4 +34,23 @@ func TestSimpleOverseer(t *testing.T) {
 
 	// Should not crash
 	ovr.StopAll()
+}
+
+func TestSleepOverseer(t *testing.T) {
+	id := "sleep"
+	ovr := NewOverseer()
+
+	p := ovr.Add(id, "sleep", "10")
+	p.Start()
+	time.Sleep(TIME_UNIT)
+
+	stat := ovr.Status(id)
+	if stat.Exit != -1 {
+		t.Fatalf("Exit code should be negative")
+	}
+
+	err := ovr.Stop(id)
+	if err != nil {
+		t.Fatalf("Process should stop successfully")
+	}
 }
