@@ -11,40 +11,51 @@ const (
 
 type ChildProcess struct {
 	cmd.Cmd
-	delayStart uint // Nr of milli-seconds to delay the start
-	retryTimes uint // Nr of times to restart on failure
+	DelayStart uint // Nr of milli-seconds to delay the start
+	RetryTimes uint // Nr of times to restart on failure
 }
 
 // Create a new child process for the given command name and arguments.
 func NewChild(name string, args ...string) *ChildProcess {
-	p := cmd.NewCmdOptions(cmd.Options{false, true}, name, args...)
-	return &ChildProcess{*p, DEFAULT_DELAY_START, DEFAULT_RETRY_TIMES}
+	c := cmd.NewCmdOptions(cmd.Options{false, true}, name, args...)
+	return &ChildProcess{*c, DEFAULT_DELAY_START, DEFAULT_RETRY_TIMES}
+}
+
+// Clone child process.
+func CloneChild(o *ChildProcess) *ChildProcess {
+	co := cmd.NewCmdOptions(cmd.Options{false, true}, o.Name, o.Args...)
+	c := &ChildProcess{*co, DEFAULT_DELAY_START, DEFAULT_RETRY_TIMES}
+	c.SetDir(o.Dir)
+	c.SetEnv(o.Env)
+	c.SetDelayStart(o.DelayStart)
+	c.SetRetryTimes(o.RetryTimes)
+	return c
 }
 
 // Sets the environment variables for the launched process.
-func (p *ChildProcess) SetDir(dir string) {
-	p.Lock()
-	defer p.Unlock()
-	p.Dir = dir
+func (c *ChildProcess) SetDir(dir string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Dir = dir
 }
 
 // Sets the working directory of the command.
-func (p *ChildProcess) SetEnv(env []string) {
-	p.Lock()
-	defer p.Unlock()
-	p.Env = env
+func (c *ChildProcess) SetEnv(env []string) {
+	c.Lock()
+	defer c.Unlock()
+	c.Env = env
 }
 
 // Sets the delay start in milli-seconds.
-func (p *ChildProcess) SetDelayStart(delayStart uint) {
-	p.Lock()
-	defer p.Unlock()
-	p.delayStart = delayStart
+func (c *ChildProcess) SetDelayStart(delayStart uint) {
+	c.Lock()
+	defer c.Unlock()
+	c.DelayStart = delayStart
 }
 
 // Sets the times of restart in case of failure.
-func (p *ChildProcess) SetRetryTimes(retryTimes uint) {
-	p.Lock()
-	defer p.Unlock()
-	p.retryTimes = retryTimes
+func (c *ChildProcess) SetRetryTimes(retryTimes uint) {
+	c.Lock()
+	defer c.Unlock()
+	c.RetryTimes = retryTimes
 }

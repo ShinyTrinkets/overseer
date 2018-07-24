@@ -86,6 +86,22 @@ func (ovr *Overseer) Stop(id string) error {
 	return nil
 }
 
+// Start a process and restart it in case of failure.
+func (ovr *Overseer) Supervise(id string) {
+	ovr.lock.Lock()
+	c := ovr.procs[id]
+	ovr.lock.Unlock()
+
+	log.Info().
+		Str("Proc", id).Str("Dir", c.Dir).
+		Uint("DelayStart", c.DelayStart).
+		Uint("RetryTimes", c.RetryTimes).
+		Msg("Start overseeing process")
+
+	c.Stop() // just to make sure the status is updated
+	log.Info().Str("Proc", id).Msg("Stop overseeing process")
+}
+
 // Get a child process status.
 // PID, Complete or not, Exit code, Error, Runtime seconds, Stdout, Stderr
 func (ovr *Overseer) Status(id string) cmd.Status {
