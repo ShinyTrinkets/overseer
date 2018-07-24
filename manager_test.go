@@ -54,3 +54,24 @@ func TestSleepOverseer(t *testing.T) {
 		t.Fatalf("Process should stop successfully")
 	}
 }
+
+func TestInvalidOverseer(t *testing.T) {
+	id := "err1"
+	ovr := NewOverseer()
+	ovr.Add(id, "qwertyuiop", "zxcvbnm")
+	ovr.Start(id)
+
+	time.Sleep(TIME_UNIT)
+	stat := ovr.Status(id)
+
+	if stat.Error == nil {
+		t.Fatalf("Error shouldn't be nil")
+	}
+	if stat.Exit != -1 {
+		t.Fatalf("Exit code should be negative")
+	}
+	err := ovr.Stop(id)
+	if err != nil {
+		t.Fatalf("Process should stop successfully")
+	}
+}
