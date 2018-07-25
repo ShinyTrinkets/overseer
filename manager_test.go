@@ -1,77 +1,74 @@
 package overseer
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
 
 func TestSimpleOverseer(t *testing.T) {
+	assert := assert.New(t)
 	ovr := NewOverseer()
 
 	ovr.Add("echo", "echo", "")
 	stat := ovr.Start("echo")
 
-	if stat.Exit != 0 {
-		t.Fatalf("Exit code should be 0")
-	}
-	if ovr.GetPID("echo") == 0 {
-		t.Fatalf("PID shouldn't be 0")
-	}
+	assert.Equal(stat.Exit, 0, "Exit code should be 0")
+	assert.NotEqual(ovr.GetPID("echo"), 0, "PID shouldn't be 0")
 
 	ovr.Add("list", "ls", "/usr/")
 	stat = ovr.Start("list")
 
-	if stat.Exit != 0 {
-		t.Fatalf("Exit code should be 0")
-	}
-	if ovr.GetPID("list") == 0 {
-		t.Fatalf("PID shouldn't be 0")
-	}
+	assert.Equal(stat.Exit, 0, "Exit code should be 0")
+	assert.NotEqual(ovr.GetPID("list"), 0, "PID shouldn't be 0")
 
-	if len(ovr.ListAll()) != 2 {
-		t.Fatalf("Expected 2 procs: echo, list")
-	}
+	assert.Equal(len(ovr.ListAll()), 2, "Expected 2 procs: echo, list")
 
 	// Should not crash
 	ovr.StopAll()
 }
 
 func TestSleepOverseer(t *testing.T) {
-	id := "sleep"
+	assert := assert.New(t)
 	ovr := NewOverseer()
 
+	id := "sleep"
 	p := ovr.Add(id, "sleep", "10")
 	p.Start()
 	time.Sleep(TIME_UNIT)
 
 	stat := ovr.Status(id)
-	if stat.Exit != -1 {
-		t.Fatalf("Exit code should be negative")
-	}
-
-	err := ovr.Stop(id)
-	if err != nil {
-		t.Fatalf("Process should stop successfully")
-	}
+	// proc is still running
+	assert.Equal(stat.Exit, -1, "Exit code should be negative")
+	assert.Nil(ovr.Stop(id))
+	// proc was killed
+	assert.Equal(stat.Exit, -1, "Exit code should be negative")
 }
 
 func TestInvalidOverseer(t *testing.T) {
-	id := "err1"
+	assert := assert.New(t)
 	ovr := NewOverseer()
+
+	id := "err1"
 	ovr.Add(id, "qwertyuiop", "zxcvbnm")
 	ovr.Start(id)
 
 	time.Sleep(TIME_UNIT)
 	stat := ovr.Status(id)
 
-	if stat.Error == nil {
-		t.Fatalf("Error shouldn't be nil")
-	}
-	if stat.Exit != -1 {
-		t.Fatalf("Exit code should be negative")
-	}
-	err := ovr.Stop(id)
-	if err != nil {
-		t.Fatalf("Process should stop successfully")
-	}
+	assert.Equal(stat.Exit, -1, "Exit code should be negative")
+	assert.NotEqual(stat.Error, nil, "Error shouldn't be nil")
+
+	// try to stop a dead process
+	assert.Nil(ovr.Stop(id))
+
+	id = "err2"
+	ovr.Add(id, "ls", "/some_random_not_existent_path")
+	ovr.Start(id)
+
+	time.Sleep(TIME_UNIT)
+	stat = ovr.Status(id)
+
+	assert.Equal(stat.Exit, 1, "Exit code should be positive")
+	assert.Nil(stat.Error, "Error should be nil")
 }
