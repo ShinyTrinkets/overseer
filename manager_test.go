@@ -41,6 +41,7 @@ func TestSleepOverseer(t *testing.T) {
 	// proc is still running
 	assert.Equal(stat.Exit, -1, "Exit code should be negative")
 	assert.Nil(ovr.Stop(id))
+	time.Sleep(TIME_UNIT)
 	// proc was killed
 	assert.Equal(stat.Exit, -1, "Exit code should be negative")
 }
