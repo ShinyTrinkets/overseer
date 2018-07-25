@@ -11,8 +11,11 @@ import (
 	DEATH "gopkg.in/vrecan/death.v3"
 )
 
+// Tick time unit, used when scanning the procs to see if they're alive.
 const TIME_UNIT = 100 * time.Millisecond
 
+// The Overseer structure.
+// For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
 	procs    map[string]*ChildProcess
 	lock     sync.Mutex
