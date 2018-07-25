@@ -1,23 +1,19 @@
 package overseer
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestSimpleProcess(t *testing.T) {
+	assert := assert.New(t)
 	c := NewChild("ls")
 
-	if c.DelayStart != DEFAULT_DELAY_START {
-		t.Fatalf("Default delay start is wrong")
-	}
-	if c.RetryTimes != DEFAULT_RETRY_TIMES {
-		t.Fatalf("Default retry times is wrong")
-	}
+	assert.Equal(c.DelayStart, DEFAULT_DELAY_START, "Wrong default delay start")
+	assert.Equal(c.RetryTimes, DEFAULT_RETRY_TIMES, "Wrong default retry times")
 
 	c.SetDir("/")
-	if c.Dir != "/" {
-		t.Fatalf("Could not set dir")
-	}
+	assert.Equal(c.Dir, "/", "Couldn't set dir")
 }
 
 func TestCloneProcess(t *testing.T) {
@@ -26,6 +22,7 @@ func TestCloneProcess(t *testing.T) {
 		retry uint = 9
 	)
 
+	assert := assert.New(t)
 	c1 := NewChild("ls")
 	c1.SetDir("/")
 	c1.SetDelayStart(delay)
@@ -33,13 +30,8 @@ func TestCloneProcess(t *testing.T) {
 
 	c2 := c1.CloneChild()
 
-	if c1.Dir != c2.Dir {
-		t.Fatalf("Dir was not cloned")
-	}
-	if c1.DelayStart != c2.DelayStart {
-		t.Fatalf("Delay start was not cloned")
-	}
-	if c1.RetryTimes != c2.RetryTimes {
-		t.Fatalf("Retry times was not cloned")
-	}
+	assert.Equal(c1.Dir, c2.Dir)
+	assert.Equal(c1.Env, c2.Env)
+	assert.Equal(c1.DelayStart, c2.DelayStart)
+	assert.Equal(c1.RetryTimes, c2.RetryTimes)
 }
