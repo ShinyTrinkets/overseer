@@ -89,6 +89,41 @@ func (ovr *Overseer) Stop(id string) error {
 	return nil
 }
 
+// This is the *main* function.
+// Supervise all registered processes and wait for them to finish.
+func (ovr *Overseer) SuperviseAll() {
+	log.Info().Msg("Start supervise all")
+	for id := range ovr.procs {
+		go ovr.Supervise(id)
+	}
+	ticker := time.NewTicker(4 * TIME_UNIT)
+	for range ticker.C {
+		if ovr.stopping {
+			log.Info().Msg("Stop supervise all")
+			break
+		}
+
+		allDone := true
+		for _, p := range ovr.procs {
+			stat := p.Status()
+			if stat.Complete {
+				continue // the process is dead, nothing to do
+			}
+			err := syscall.Kill(stat.PID, syscall.Signal(0))
+			if err != nil {
+				continue // the process is dead, nothing to do
+			}
+			allDone = false // if at least 1 proc is running
+			break
+		}
+
+		if allDone {
+			log.Info().Msg("All procs finished")
+			break
+		}
+	}
+}
+
 // Start a process and restart it in case of failure.
 func (ovr *Overseer) Supervise(id string) {
 	ovr.lock.Lock()
