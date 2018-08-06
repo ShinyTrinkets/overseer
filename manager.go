@@ -179,7 +179,7 @@ func (ovr *Overseer) Supervise(id string) {
 				if stat.Complete || stat.Exit > -1 {
 					break
 				}
-				log.Debug().Msg(line)
+				log.Warn().Msg(line)
 			}
 		}()
 
