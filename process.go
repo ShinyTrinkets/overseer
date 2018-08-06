@@ -5,7 +5,7 @@ import (
 )
 
 const (
-	DEFAULT_DELAY_START uint = 10
+	DEFAULT_DELAY_START uint = 25
 	DEFAULT_RETRY_TIMES uint = 3
 )
 

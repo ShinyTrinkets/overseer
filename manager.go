@@ -51,6 +51,7 @@ func (ovr *Overseer) Add(id string, args ...string) *ChildProcess {
 
 	c := NewChild(args[0], args[1:]...)
 	ovr.procs[id] = c
+	log.Debug().Str("Proc", id).Msgf("Add process: %s %v", c.Name, c.Args)
 	return c
 }
 
@@ -58,6 +59,7 @@ func (ovr *Overseer) Add(id string, args ...string) *ChildProcess {
 func (ovr *Overseer) Remove(id string) {
 	ovr.lock.Lock()
 	defer ovr.lock.Unlock()
+	log.Debug().Str("Proc", id).Msg("Rem process")
 	delete(ovr.procs, id)
 }
 
@@ -96,6 +98,7 @@ func (ovr *Overseer) SuperviseAll() {
 	for id := range ovr.procs {
 		go ovr.Supervise(id)
 	}
+	// Check all procs every tick
 	ticker := time.NewTicker(4 * TIME_UNIT)
 	for range ticker.C {
 		if ovr.stopping {
@@ -147,25 +150,10 @@ func (ovr *Overseer) Supervise(id string) {
 			time.Sleep(time.Duration(delayStart) * time.Millisecond)
 		}
 
+		log.Debug().Str("Proc", id).Msgf("Start process: %s %v", c.Name, c.Args)
+
 		// Async start
 		c.Start()
-
-		log.Debug().Str("Proc", id).Msg("Start process")
-
-		// Check PID from time to time, if it hasn't been killed
-		// by an external signal, or from an internal error
-		go func() {
-			time.Sleep(2 * TIME_UNIT)
-			pid := c.Status().PID
-			ticker := time.NewTicker(4 * TIME_UNIT)
-			for range ticker.C {
-				err := syscall.Kill(pid, syscall.Signal(0))
-				if err != nil {
-					log.Debug().Str("Proc", id).Err(err).Msg("Process has died")
-					break
-				}
-			}
-		}()
 
 		// Process each line of STDOUT
 		go func() {
@@ -192,6 +180,21 @@ func (ovr *Overseer) Supervise(id string) {
 					break
 				}
 				log.Debug().Msg(line)
+			}
+		}()
+
+		// Check PID from time to time, if it hasn't been killed
+		// by an external signal, or from an internal error
+		go func() {
+			time.Sleep(2 * TIME_UNIT)
+			pid := c.Status().PID
+			ticker := time.NewTicker(4 * TIME_UNIT)
+			for range ticker.C {
+				err := syscall.Kill(pid, syscall.Signal(0))
+				if err != nil {
+					log.Debug().Str("Proc", id).Err(err).Msg("Process has died")
+					break
+				}
 			}
 		}()
 
