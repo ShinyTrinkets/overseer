@@ -202,7 +202,7 @@ func (ovr *Overseer) Supervise(id string) {
 		stat := <-c.Start()
 
 		// If the process didn't have any failures
-		// Exit normally, no need to retry
+		// Exited normally, no need to retry
 		if stat.Exit == 0 || stat.Error == nil {
 			break
 		}
@@ -224,6 +224,7 @@ func (ovr *Overseer) Supervise(id string) {
 
 		ovr.lock.Lock()
 		delete(ovr.procs, id)
+		// overwrite the top variable
 		c = c.CloneChild()
 		ovr.procs[id] = c
 		ovr.lock.Unlock()
@@ -242,16 +243,10 @@ func (ovr *Overseer) Status(id string) cmd.Status {
 	return c.Status()
 }
 
-// Get the PID of the child process.
-func (ovr *Overseer) GetPID(id string) int {
-	stat := ovr.Status(id)
-	return stat.PID
-}
-
 // Send OS signal to a child process.
 func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
-	pid := ovr.GetPID(id)
-	return syscall.Kill(-pid, sig)
+	stat := ovr.Status(id)
+	return syscall.Kill(-stat.PID, sig)
 }
 
 // Cycle and kill all child procs. Used when exiting the program.

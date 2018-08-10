@@ -28,7 +28,7 @@ Icon is made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> fro
 
 [MIT](LICENSE) © Cristi Constantin.
 
-[project-img]: https://badgen.net/badge/⚙/Trinkets/4B0082
+[project-img]: https://badgen.net/badge/⚙️/Trinkets/4B0082
 [project-url]: https://github.com/ShinyTrinkets
 [goreport-img]: https://goreportcard.com/badge/github.com/ShinyTrinkets/overseer
 [goreport-url]: https://goreportcard.com/report/github.com/ShinyTrinkets/overseer
