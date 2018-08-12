@@ -1,6 +1,9 @@
 package overseer
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/ShinyTrinkets/go-cmd"
 )
 
@@ -13,6 +16,20 @@ type ChildProcess struct {
 	cmd.Cmd
 	DelayStart uint // Nr of milli-seconds to delay the start
 	RetryTimes uint // Nr of times to restart on failure
+}
+
+type JsonProcess struct {
+	Cmd        string
+	PID        int
+	Complete   bool    // false if stopped or signaled
+	Exit       int     // exit code of process
+	Error      error   // Go error
+	Runtime    float64 // seconds, zero if Cmd not started
+	StartTime  time.Time
+	Env        []string
+	Dir        string
+	DelayStart uint
+	RetryTimes uint
 }
 
 // Create a new child process for the given command name and arguments.
@@ -30,6 +47,25 @@ func (o *ChildProcess) CloneChild() *ChildProcess {
 	c.SetDelayStart(o.DelayStart)
 	c.SetRetryTimes(o.RetryTimes)
 	return c
+}
+
+func (o *ChildProcess) ToJson() JsonProcess {
+	s := o.Status()
+	cmd := fmt.Sprint(o.Name, " ", o.Args)
+	startTime := time.Unix(0, s.StartTs)
+	return JsonProcess{
+		cmd,
+		s.PID,
+		s.Complete,
+		s.Exit,
+		s.Error,
+		s.Runtime,
+		startTime,
+		o.Env,
+		o.Dir,
+		o.DelayStart,
+		o.RetryTimes,
+	}
 }
 
 // Sets the environment variables for the launched process.

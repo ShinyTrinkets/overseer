@@ -14,13 +14,13 @@ func TestSimpleOverseer(t *testing.T) {
 	stat := ovr.Start("echo")
 
 	assert.Equal(stat.Exit, 0, "Exit code should be 0")
-	assert.NotEqual(ovr.GetPID("echo"), 0, "PID shouldn't be 0")
+	assert.NotEqual(ovr.Status("echo").PID, 0, "PID shouldn't be 0")
 
 	ovr.Add("list", "ls", "/usr/")
 	stat = ovr.Start("list")
 
 	assert.Equal(stat.Exit, 0, "Exit code should be 0")
-	assert.NotEqual(ovr.GetPID("list"), 0, "PID shouldn't be 0")
+	assert.NotEqual(ovr.Status("list").PID, 0, "PID shouldn't be 0")
 
 	assert.Equal(len(ovr.ListAll()), 2, "Expected 2 procs: echo, list")
 

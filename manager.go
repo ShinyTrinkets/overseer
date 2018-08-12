@@ -234,6 +234,13 @@ func (ovr *Overseer) Supervise(id string) {
 	log.Info().Str("Proc", id).Msg("Stop overseeing process")
 }
 
+func (ovr *Overseer) ToJson(id string) JsonProcess {
+	ovr.lock.Lock()
+	c := ovr.procs[id]
+	ovr.lock.Unlock()
+	return c.ToJson()
+}
+
 // Get a child process status.
 // PID, Complete or not, Exit code, Error, Runtime seconds, Stdout, Stderr
 func (ovr *Overseer) Status(id string) cmd.Status {
