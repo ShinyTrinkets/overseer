@@ -7,6 +7,7 @@
 # Overseer
 
 [![Project name][project-img]][project-url]
+[![Build status][build-img]][build-url]
 [![Go Report Card][goreport-img]][goreport-url]
 
 > Simple process manager library.
@@ -28,7 +29,9 @@ Icon is made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> fro
 
 [MIT](LICENSE) © Cristi Constantin.
 
-[project-img]: https://badgen.net/badge/⚙️/Trinkets/4B0082
+[project-img]: https://badgen.net/badge/%E2%AD%90/Trinkets/4B0082
 [project-url]: https://github.com/ShinyTrinkets
-[goreport-img]: https://goreportcard.com/badge/github.com/ShinyTrinkets/overseer
-[goreport-url]: https://goreportcard.com/report/github.com/ShinyTrinkets/overseer
+[build-img]: https://badgen.net/travis/ShinyTrinkets/overseer.go
+[build-url]: https://travis-ci.org/ShinyTrinkets/overseer.go
+[goreport-img]: https://goreportcard.com/badge/github.com/ShinyTrinkets/overseer.go
+[goreport-url]: https://goreportcard.com/report/github.com/ShinyTrinkets/overseer.go
