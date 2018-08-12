@@ -9,8 +9,8 @@ func TestSimpleProcess(t *testing.T) {
 	assert := assert.New(t)
 	c := NewChild("ls")
 
-	assert.Equal(c.DelayStart, DEFAULT_DELAY_START, "Wrong default delay start")
-	assert.Equal(c.RetryTimes, DEFAULT_RETRY_TIMES, "Wrong default retry times")
+	assert.Equal(c.DelayStart, defaultDelayStart, "Wrong default delay start")
+	assert.Equal(c.RetryTimes, defaultRetryTimes, "Wrong default retry times")
 
 	c.SetDir("/")
 	assert.Equal(c.Dir, "/", "Couldn't set dir")

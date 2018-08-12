@@ -8,17 +8,19 @@ import (
 )
 
 const (
-	DEFAULT_DELAY_START uint = 25
-	DEFAULT_RETRY_TIMES uint = 3
+	defaultDelayStart uint = 25
+	defaultRetryTimes uint = 3
 )
 
+// ChildProcess structure
 type ChildProcess struct {
 	cmd.Cmd
 	DelayStart uint // Nr of milli-seconds to delay the start
 	RetryTimes uint // Nr of times to restart on failure
 }
 
-type JsonProcess struct {
+// JSONProcess structure
+type JSONProcess struct {
 	Cmd        string
 	PID        int
 	Complete   bool    // false if stopped or signaled
@@ -32,28 +34,37 @@ type JsonProcess struct {
 	RetryTimes uint
 }
 
-// Create a new child process for the given command name and arguments.
+// NewChild returns a new child process for the given command name and arguments.
 func NewChild(name string, args ...string) *ChildProcess {
-	c := cmd.NewCmdOptions(cmd.Options{false, true}, name, args...)
-	return &ChildProcess{*c, DEFAULT_DELAY_START, DEFAULT_RETRY_TIMES}
+	c := cmd.NewCmdOptions(
+		cmd.Options{Buffered: false, Streaming: true},
+		name,
+		args...,
+	)
+	return &ChildProcess{*c, defaultDelayStart, defaultRetryTimes}
 }
 
-// Clone child process.
-func (o *ChildProcess) CloneChild() *ChildProcess {
-	co := cmd.NewCmdOptions(cmd.Options{false, true}, o.Name, o.Args...)
-	c := &ChildProcess{*co, DEFAULT_DELAY_START, DEFAULT_RETRY_TIMES}
-	c.SetDir(o.Dir)
-	c.SetEnv(o.Env)
-	c.SetDelayStart(o.DelayStart)
-	c.SetRetryTimes(o.RetryTimes)
-	return c
+// CloneChild clones a child process.
+func (c *ChildProcess) CloneChild() *ChildProcess {
+	clone := cmd.NewCmdOptions(
+		cmd.Options{Buffered: false, Streaming: true},
+		c.Name,
+		c.Args...,
+	)
+	p := &ChildProcess{*clone, defaultDelayStart, defaultRetryTimes}
+	p.SetDir(c.Dir)
+	p.SetEnv(c.Env)
+	p.SetDelayStart(c.DelayStart)
+	p.SetRetryTimes(c.RetryTimes)
+	return p
 }
 
-func (o *ChildProcess) ToJson() JsonProcess {
-	s := o.Status()
-	cmd := fmt.Sprint(o.Name, " ", o.Args)
+// ToJSON returns more detailed info about a proc.
+func (c *ChildProcess) ToJSON() JSONProcess {
+	s := c.Status()
+	cmd := fmt.Sprint(c.Name, " ", c.Args)
 	startTime := time.Unix(0, s.StartTs)
-	return JsonProcess{
+	return JSONProcess{
 		cmd,
 		s.PID,
 		s.Complete,
@@ -61,35 +72,35 @@ func (o *ChildProcess) ToJson() JsonProcess {
 		s.Error,
 		s.Runtime,
 		startTime,
-		o.Env,
-		o.Dir,
-		o.DelayStart,
-		o.RetryTimes,
+		c.Env,
+		c.Dir,
+		c.DelayStart,
+		c.RetryTimes,
 	}
 }
 
-// Sets the environment variables for the launched process.
+// SetDir sets the environment variables for the launched process.
 func (c *ChildProcess) SetDir(dir string) {
 	c.Lock()
 	defer c.Unlock()
 	c.Dir = dir
 }
 
-// Sets the working directory of the command.
+// SetEnv sets the working directory of the command.
 func (c *ChildProcess) SetEnv(env []string) {
 	c.Lock()
 	defer c.Unlock()
 	c.Env = env
 }
 
-// Sets the delay start in milli-seconds.
+// SetDelayStart sets the delay start in milli-seconds.
 func (c *ChildProcess) SetDelayStart(delayStart uint) {
 	c.Lock()
 	defer c.Unlock()
 	c.DelayStart = delayStart
 }
 
-// Sets the times of restart in case of failure.
+// SetRetryTimes sets the times of restart in case of failure.
 func (c *ChildProcess) SetRetryTimes(retryTimes uint) {
 	c.Lock()
 	defer c.Unlock()

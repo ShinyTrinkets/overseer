@@ -35,13 +35,13 @@ func TestSleepOverseer(t *testing.T) {
 	id := "sleep"
 	p := ovr.Add(id, "sleep", "10")
 	p.Start()
-	time.Sleep(TIME_UNIT)
+	time.Sleep(timeUnit)
 
 	stat := ovr.Status(id)
 	// proc is still running
 	assert.Equal(stat.Exit, -1, "Exit code should be negative")
 	assert.Nil(ovr.Stop(id))
-	time.Sleep(TIME_UNIT)
+	time.Sleep(timeUnit)
 	// proc was killed
 	assert.Equal(stat.Exit, -1, "Exit code should be negative")
 }
@@ -54,7 +54,7 @@ func TestInvalidOverseer(t *testing.T) {
 	ovr.Add(id, "qwertyuiop", "zxcvbnm")
 	ovr.Start(id)
 
-	time.Sleep(TIME_UNIT)
+	time.Sleep(timeUnit)
 	stat := ovr.Status(id)
 
 	assert.Equal(stat.Exit, -1, "Exit code should be negative")
@@ -67,7 +67,7 @@ func TestInvalidOverseer(t *testing.T) {
 	ovr.Add(id, "ls", "/some_random_not_existent_path")
 	ovr.Start(id)
 
-	time.Sleep(TIME_UNIT)
+	time.Sleep(timeUnit)
 	stat = ovr.Status(id)
 
 	assert.True(stat.Exit > 0, "Exit code should be positive")

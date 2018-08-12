@@ -12,9 +12,9 @@ import (
 )
 
 // Tick time unit, used when scanning the procs to see if they're alive.
-const TIME_UNIT = 100 * time.Millisecond
+const timeUnit = 100 * time.Millisecond
 
-// The Overseer structure.
+// Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
 	procs    map[string]*ChildProcess
@@ -22,6 +22,8 @@ type Overseer struct {
 	stopping bool
 }
 
+// NewOverseer creates a new Overseer.
+// After creating it, add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
 	ovr := &Overseer{
 		procs: make(map[string]*ChildProcess),
@@ -34,7 +36,7 @@ func NewOverseer() *Overseer {
 	return ovr
 }
 
-// Return the names of all the processes.
+// ListAll returns the names of all the processes.
 func (ovr *Overseer) ListAll() []string {
 	ids := []string{}
 	for id := range ovr.procs {
@@ -63,7 +65,24 @@ func (ovr *Overseer) Remove(id string) {
 	delete(ovr.procs, id)
 }
 
-// Simply start the process and block until it finishes.
+// Status returns a child process status.
+// PID, Complete or not, Exit code, Error, Runtime seconds, Stdout, Stderr
+func (ovr *Overseer) Status(id string) cmd.Status {
+	ovr.lock.Lock()
+	c := ovr.procs[id]
+	ovr.lock.Unlock()
+	return c.Status()
+}
+
+// ToJSON returns a more detailed process status, ready to be converted to JSON.
+func (ovr *Overseer) ToJSON(id string) JSONProcess {
+	ovr.lock.Lock()
+	c := ovr.procs[id]
+	ovr.lock.Unlock()
+	return c.ToJSON()
+}
+
+// Start the process and block until it finishes.
 // The process can be started again, if needed.
 func (ovr *Overseer) Start(id string) cmd.Status {
 	ovr.lock.Lock()
@@ -91,7 +110,13 @@ func (ovr *Overseer) Stop(id string) error {
 	return nil
 }
 
-// This is the *main* function.
+// Signal sends OS signal to a child process.
+func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
+	stat := ovr.Status(id)
+	return syscall.Kill(-stat.PID, sig)
+}
+
+// SuperviseAll is the *main* function.
 // Supervise all registered processes and wait for them to finish.
 func (ovr *Overseer) SuperviseAll() {
 	log.Info().Msg("Start supervise all")
@@ -99,7 +124,7 @@ func (ovr *Overseer) SuperviseAll() {
 		go ovr.Supervise(id)
 	}
 	// Check all procs every tick
-	ticker := time.NewTicker(4 * TIME_UNIT)
+	ticker := time.NewTicker(4 * timeUnit)
 	for range ticker.C {
 		if ovr.stopping {
 			log.Info().Msg("Stop supervise all")
@@ -127,7 +152,7 @@ func (ovr *Overseer) SuperviseAll() {
 	}
 }
 
-// Start a process and restart it in case of failure.
+// Supervise launches a process and restart it in case of failure.
 func (ovr *Overseer) Supervise(id string) {
 	ovr.lock.Lock()
 	c := ovr.procs[id]
@@ -186,9 +211,9 @@ func (ovr *Overseer) Supervise(id string) {
 		// Check PID from time to time, if it hasn't been killed
 		// by an external signal, or from an internal error
 		go func() {
-			time.Sleep(2 * TIME_UNIT)
+			time.Sleep(2 * timeUnit)
 			pid := c.Status().PID
-			ticker := time.NewTicker(4 * TIME_UNIT)
+			ticker := time.NewTicker(4 * timeUnit)
 			for range ticker.C {
 				err := syscall.Kill(pid, syscall.Signal(0))
 				if err != nil {
@@ -234,29 +259,7 @@ func (ovr *Overseer) Supervise(id string) {
 	log.Info().Str("Proc", id).Msg("Stop overseeing process")
 }
 
-func (ovr *Overseer) ToJson(id string) JsonProcess {
-	ovr.lock.Lock()
-	c := ovr.procs[id]
-	ovr.lock.Unlock()
-	return c.ToJson()
-}
-
-// Get a child process status.
-// PID, Complete or not, Exit code, Error, Runtime seconds, Stdout, Stderr
-func (ovr *Overseer) Status(id string) cmd.Status {
-	ovr.lock.Lock()
-	c := ovr.procs[id]
-	ovr.lock.Unlock()
-	return c.Status()
-}
-
-// Send OS signal to a child process.
-func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
-	stat := ovr.Status(id)
-	return syscall.Kill(-stat.PID, sig)
-}
-
-// Cycle and kill all child procs. Used when exiting the program.
+// StopAll cycles and kills all child procs. Used when exiting the program.
 func (ovr *Overseer) StopAll() {
 	ovr.lock.Lock()
 	ovr.stopping = true
