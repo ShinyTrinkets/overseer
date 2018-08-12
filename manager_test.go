@@ -70,6 +70,6 @@ func TestInvalidOverseer(t *testing.T) {
 	time.Sleep(TIME_UNIT)
 	stat = ovr.Status(id)
 
-	assert.Equal(stat.Exit, 1, "Exit code should be positive")
+	assert.True(stat.Exit > 0, "Exit code should be positive")
 	assert.Nil(stat.Error, "Error should be nil")
 }
