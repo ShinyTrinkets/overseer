@@ -21,17 +21,17 @@ type ChildProcess struct {
 
 // JSONProcess structure
 type JSONProcess struct {
-	Cmd        string
-	PID        int
-	Complete   bool    // false if stopped or signaled
-	Exit       int     // exit code of process
-	Error      error   // Go error
-	Runtime    float64 // seconds, zero if Cmd not started
-	StartTime  time.Time
-	Env        []string
-	Dir        string
-	DelayStart uint
-	RetryTimes uint
+	Cmd        string    `json:"cmd"`
+	PID        int       `json:"PID"`
+	Complete   bool      `json:"complete"` // false if stopped or signaled
+	ExitCode   int       `json:"exitCode"` // exit code of process
+	Error      error     `json:"error"`    // Go error
+	RunTime    float64   `json:"runTime"`  // seconds, zero if Cmd not started
+	StartTime  time.Time `json:"startTime"`
+	Env        []string  `json:"end"`
+	Dir        string    `json:"dir"`
+	DelayStart uint      `json:"delayStart"`
+	RetryTimes uint      `json:"retryTimes"`
 }
 
 // NewChild returns a new child process for the given command name and arguments.
