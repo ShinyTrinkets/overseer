@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	idLength          uint = 16
 	defaultDelayStart uint = 25
 	defaultRetryTimes uint = 3
 )
@@ -15,8 +16,9 @@ const (
 // ChildProcess structure
 type ChildProcess struct {
 	cmd.Cmd
-	DelayStart uint // Nr of milli-seconds to delay the start
-	RetryTimes uint // Nr of times to restart on failure
+	id         string // The id is private
+	DelayStart uint   // Nr of milli-seconds to delay the start
+	RetryTimes uint   // Nr of times to restart on failure
 }
 
 // JSONProcess structure
@@ -41,17 +43,21 @@ func NewChild(name string, args ...string) *ChildProcess {
 		name,
 		args...,
 	)
-	return &ChildProcess{*c, defaultDelayStart, defaultRetryTimes}
+	randID := randomKey(idLength)
+	return &ChildProcess{*c, randID, defaultDelayStart, defaultRetryTimes}
 }
 
-// CloneChild clones a child process.
+// CloneChild clones a child process. All the configs are transferred,
+// and the state of the original object is lost.
 func (c *ChildProcess) CloneChild() *ChildProcess {
 	clone := cmd.NewCmdOptions(
 		cmd.Options{Buffered: false, Streaming: true},
 		c.Name,
 		c.Args...,
 	)
-	p := &ChildProcess{*clone, defaultDelayStart, defaultRetryTimes}
+	randID := randomKey(idLength)
+	p := &ChildProcess{*clone, randID, defaultDelayStart, defaultRetryTimes}
+	// transfer the config
 	p.SetDir(c.Dir)
 	p.SetEnv(c.Env)
 	p.SetDelayStart(c.DelayStart)
@@ -59,7 +65,7 @@ func (c *ChildProcess) CloneChild() *ChildProcess {
 	return p
 }
 
-// ToJSON returns more detailed info about a proc.
+// ToJSON returns more detailed info about a child process.
 func (c *ChildProcess) ToJSON() JSONProcess {
 	s := c.Status()
 	cmd := fmt.Sprint(c.Name, " ", c.Args)
@@ -80,6 +86,7 @@ func (c *ChildProcess) ToJSON() JSONProcess {
 }
 
 // SetDir sets the environment variables for the launched process.
+// This can only have effect before starting the process.
 func (c *ChildProcess) SetDir(dir string) {
 	c.Lock()
 	defer c.Unlock()
@@ -87,6 +94,7 @@ func (c *ChildProcess) SetDir(dir string) {
 }
 
 // SetEnv sets the working directory of the command.
+// This can only have effect before starting the process.
 func (c *ChildProcess) SetEnv(env []string) {
 	c.Lock()
 	defer c.Unlock()
