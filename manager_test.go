@@ -38,8 +38,17 @@ func TestSleepOverseer(t *testing.T) {
 	time.Sleep(timeUnit)
 
 	stat := ovr.Status(id)
+	json := ovr.ToJSON(id)
 	// proc is still running
-	assert.Equal(stat.Exit, -1, "Exit code should be negative")
+	assert.Equal(stat.Exit, -1)
+	assert.Nil(stat.Error)
+	// JSON status should contain the same info
+	assert.Equal(stat.Exit, json.ExitCode)
+	assert.Equal(stat.Error, json.Error)
+	assert.Equal(stat.PID, json.PID)
+	assert.Equal(stat.Complete, json.Complete)
+
+	// success stop
 	assert.Nil(ovr.Stop(id))
 	time.Sleep(timeUnit)
 	// proc was killed
@@ -56,9 +65,15 @@ func TestInvalidOverseer(t *testing.T) {
 
 	time.Sleep(timeUnit)
 	stat := ovr.Status(id)
+	json := ovr.ToJSON(id)
 
 	assert.Equal(stat.Exit, -1, "Exit code should be negative")
 	assert.NotEqual(stat.Error, nil, "Error shouldn't be nil")
+	// JSON status should contain the same info
+	assert.Equal(stat.Exit, json.ExitCode)
+	assert.Equal(stat.Error, json.Error)
+	assert.Equal(stat.PID, json.PID)
+	assert.Equal(stat.Complete, json.Complete)
 
 	// try to stop a dead process
 	assert.Nil(ovr.Stop(id))
