@@ -14,9 +14,12 @@
 
 The useful methods are:
 
+* `NewOverseer()` - Returns a new instance of an overseer manager. To register processes, use the `Add(id string, args ...string)` method, and to unregister use the `Remove(id string)` method.
+* `Supervise(id string)` - Supervise a registered process and block until it finishes. This includes checking if the process was killed from outside, delaying the start and restarting in case of failure.
 * `Stop(id string)` - Stop the process by sending its process group a SIGTERM signal.
-* `Supervise(id string)` - Supervise the process and block until it finishes. This includes checking if the process was killed from outside, delaying the start and restarting in case of failure.
-* `SuperviseAll()` - Supervise all processes and block until they finish. This includes killing all the processes when the main program exits.
+* `Signal(id string)` - Signal sends an OS signal to the process group.
+* `SuperviseAll()` - This is the main function. Supervise all processes and block until they finish. This includes killing all the processes when the main program exits.
+* `StopAll()` - Cycle and stop all processes by sending SIGTERM.
 
 For examples of usage, please check the tests, for now.
 

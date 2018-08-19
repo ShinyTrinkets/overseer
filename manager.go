@@ -1,6 +1,7 @@
 package overseer
 
 import (
+	"math/rand"
 	"sort"
 	"sync"
 	"syscall"
@@ -25,6 +26,8 @@ type Overseer struct {
 // NewOverseer creates a new Overseer.
 // After creating it, add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
+	// Reset the random seed
+	rand.Seed(time.Now().UTC().UnixNano())
 	ovr := &Overseer{
 		procs: make(map[string]*ChildProcess),
 	}
@@ -110,7 +113,7 @@ func (ovr *Overseer) Stop(id string) error {
 	return nil
 }
 
-// Signal sends OS signal to a child process.
+// Signal sends OS signal to the process group.
 func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
 	stat := ovr.Status(id)
 	return syscall.Kill(-stat.PID, sig)
@@ -166,6 +169,11 @@ func (ovr *Overseer) Supervise(id string) {
 		Uint("DelayStart", delayStart).
 		Uint("RetryTimes", retryTimes).
 		Msg("Start overseeing process")
+
+	b := &Backoff{
+		Factor: 3,
+		Jitter: true,
+	}
 
 	for {
 		if ovr.stopping {
@@ -236,10 +244,12 @@ func (ovr *Overseer) Supervise(id string) {
 			break
 		}
 
+		// Decrement the number of retries and increase the start time
 		retryTimes--
+		delayStart += uint(b.Duration())
 
 		if retryTimes < 1 {
-			log.Warn().Str("Proc", id).Err(stat.Error).Msgf("Process exited abnormally. Stopped.")
+			log.Warn().Str("Proc", id).Err(stat.Error).Msg("Process exited abnormally. Stopped.")
 			c.Stop() // just to make sure the status is updated
 			break
 		} else {
@@ -255,7 +265,8 @@ func (ovr *Overseer) Supervise(id string) {
 		ovr.lock.Unlock()
 	}
 
-	c.Stop() // just to make sure the status is updated
+	b.Reset() // clean backoff
+	c.Stop()  // just to make sure the status is updated
 	log.Info().Str("Proc", id).Msg("Stop overseeing process")
 }
 
