@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	idLength          uint = 16
 	defaultDelayStart uint = 25
 	defaultRetryTimes uint = 3
 )
@@ -16,9 +15,8 @@ const (
 // ChildProcess structure
 type ChildProcess struct {
 	cmd.Cmd
-	id         string // The id is private
-	DelayStart uint   // Nr of milli-seconds to delay the start
-	RetryTimes uint   // Nr of times to restart on failure
+	DelayStart uint // Nr of milli-seconds to delay the start
+	RetryTimes uint // Nr of times to restart on failure
 }
 
 // JSONProcess structure
@@ -43,8 +41,7 @@ func NewChild(name string, args ...string) *ChildProcess {
 		name,
 		args...,
 	)
-	randID := randomKey(idLength)
-	return &ChildProcess{*c, randID, defaultDelayStart, defaultRetryTimes}
+	return &ChildProcess{*c, defaultDelayStart, defaultRetryTimes}
 }
 
 // CloneChild clones a child process. All the configs are transferred,
@@ -55,8 +52,7 @@ func (c *ChildProcess) CloneChild() *ChildProcess {
 		c.Name,
 		c.Args...,
 	)
-	randID := randomKey(idLength)
-	p := &ChildProcess{*clone, randID, defaultDelayStart, defaultRetryTimes}
+	p := &ChildProcess{*clone, defaultDelayStart, defaultRetryTimes}
 	// transfer the config
 	p.SetDir(c.Dir)
 	p.SetEnv(c.Env)
