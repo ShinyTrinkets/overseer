@@ -81,22 +81,6 @@ func (c *ChildProcess) ToJSON() JSONProcess {
 	}
 }
 
-// SetDir sets the environment variables for the launched process.
-// This can only have effect before starting the process.
-func (c *ChildProcess) SetDir(dir string) {
-	c.Lock()
-	defer c.Unlock()
-	c.Dir = dir
-}
-
-// SetEnv sets the working directory of the command.
-// This can only have effect before starting the process.
-func (c *ChildProcess) SetEnv(env []string) {
-	c.Lock()
-	defer c.Unlock()
-	c.Env = env
-}
-
 // SetDelayStart sets the delay start in milli-seconds.
 func (c *ChildProcess) SetDelayStart(delayStart uint) {
 	c.Lock()
