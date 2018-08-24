@@ -88,3 +88,18 @@ func TestInvalidOverseer(t *testing.T) {
 	assert.True(stat.Exit > 0, "Exit code should be positive")
 	assert.Nil(stat.Error, "Error should be nil")
 }
+
+func TestSimpleSupervise(t *testing.T) {
+	assert := assert.New(t)
+	ovr := NewOverseer()
+
+	ovr.Add("echo", "echo", "")
+	id := "sleep"
+	ovr.Add(id, "sleep", "1")
+
+	ovr.Supervise(id) // To supervise sleep. How cool is that?
+	stat := ovr.Status(id)
+
+	assert.Equal(stat.Exit, 0, "Exit code should be 0")
+	assert.Nil(stat.Error, "Error should be nil")
+}

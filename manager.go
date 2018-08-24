@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ShinyTrinkets/go-cmd"
-	"github.com/rs/zerolog/log"
+	"github.com/azer/logger"
 	DEATH "gopkg.in/vrecan/death.v3"
 )
 
@@ -26,12 +26,16 @@ type Overseer struct {
 // NewOverseer creates a new Overseer.
 // After creating it, add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
-	// Reset the random seed
+	// Setup the logs
+	// TODO: This should be customizable
+	log = logger.New("overseer")
+	// Reset the random seed, for backoff jitter
 	rand.Seed(time.Now().UTC().UnixNano())
+
 	ovr := &Overseer{
 		procs: make(map[string]*ChildProcess),
 	}
-	// Catch death signals and stop all child procs
+	// Catch death signals and stop all child procs on exit
 	death := DEATH.NewDeath(syscall.SIGINT, syscall.SIGTERM)
 	go death.WaitForDeathWithFunc(func() {
 		ovr.StopAll()
@@ -41,10 +45,12 @@ func NewOverseer() *Overseer {
 
 // ListAll returns the names of all the processes.
 func (ovr *Overseer) ListAll() []string {
+	ovr.lock.Lock()
 	ids := []string{}
 	for id := range ovr.procs {
 		ids = append(ids, id)
 	}
+	ovr.lock.Unlock()
 	sort.Strings(ids)
 	return ids
 }
@@ -52,11 +58,14 @@ func (ovr *Overseer) ListAll() []string {
 // Add (register) a process, without starting it.
 func (ovr *Overseer) Add(id string, args ...string) *ChildProcess {
 	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
-
 	c := NewChild(args[0], args[1:]...)
 	ovr.procs[id] = c
-	log.Debug().Str("Proc", id).Msgf("Add process: %s %v", c.Name, c.Args)
+	ovr.lock.Unlock()
+	log.Info("Add process:", Attrs{
+		"id":   id,
+		"name": c.Name,
+		"args": c.Args,
+	})
 	return c
 }
 
@@ -64,7 +73,7 @@ func (ovr *Overseer) Add(id string, args ...string) *ChildProcess {
 func (ovr *Overseer) Remove(id string) {
 	ovr.lock.Lock()
 	defer ovr.lock.Unlock()
-	log.Debug().Str("Proc", id).Msg("Rem process")
+	log.Info("Rem process:", Attrs{"id": id})
 	delete(ovr.procs, id)
 }
 
@@ -91,8 +100,11 @@ func (ovr *Overseer) Start(id string) cmd.Status {
 	ovr.lock.Lock()
 	c := ovr.procs[id]
 	ovr.lock.Unlock()
-
-	log.Info().Str("Proc", id).Msg("Start process")
+	log.Info("Start process:", Attrs{
+		"id":   id,
+		"name": c.Name,
+		"args": c.Args,
+	})
 	return <-c.Start()
 }
 
@@ -105,11 +117,11 @@ func (ovr *Overseer) Stop(id string) error {
 
 	err := c.Stop()
 	if err != nil {
-		log.Error().Str("Proc", id).Msg("Cannot stop process")
+		log.Error("Cannot stop process:", Attrs{"id": id})
 		return err
 	}
 
-	log.Info().Str("Proc", id).Msg("Stop process")
+	log.Info("Stop process:", Attrs{"id": id})
 	return nil
 }
 
@@ -122,7 +134,7 @@ func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
 // SuperviseAll is the *main* function.
 // Supervise all registered processes and wait for them to finish.
 func (ovr *Overseer) SuperviseAll() {
-	log.Info().Msg("Start supervise all")
+	log.Info("Start supervise all")
 	for id := range ovr.procs {
 		go ovr.Supervise(id)
 	}
@@ -130,7 +142,7 @@ func (ovr *Overseer) SuperviseAll() {
 	ticker := time.NewTicker(4 * timeUnit)
 	for range ticker.C {
 		if ovr.stopping {
-			log.Info().Msg("Stop supervise all")
+			log.Info("Stop supervise all")
 			break
 		}
 
@@ -149,7 +161,7 @@ func (ovr *Overseer) SuperviseAll() {
 		}
 
 		if allDone {
-			log.Info().Msg("All procs finished")
+			log.Info("All procs finished")
 			break
 		}
 	}
@@ -164,11 +176,11 @@ func (ovr *Overseer) Supervise(id string) {
 	delayStart := c.DelayStart
 	retryTimes := c.RetryTimes
 
-	log.Info().
-		Str("Proc", id).Str("Dir", c.Dir).
-		Uint("DelayStart", delayStart).
-		Uint("RetryTimes", retryTimes).
-		Msg("Start overseeing process")
+	// Overwrite the global log
+	// TODO: This should be customizable
+	var log = logger.New("proc")
+
+	log.Info("Start overseeing process:", Attrs{"id": id})
 
 	b := &Backoff{
 		Factor: 3,
@@ -183,7 +195,14 @@ func (ovr *Overseer) Supervise(id string) {
 			time.Sleep(time.Duration(delayStart) * time.Millisecond)
 		}
 
-		log.Debug().Str("Proc", id).Msgf("Start process: %s %v", c.Name, c.Args)
+		log.Info("Start process:", Attrs{
+			"id":         id,
+			"dir":        c.Dir,
+			"name":       c.Name,
+			"args":       c.Args,
+			"delayStart": delayStart,
+			"retryTimes": retryTimes,
+		})
 
 		// Async start
 		c.Start()
@@ -198,7 +217,7 @@ func (ovr *Overseer) Supervise(id string) {
 				if stat.Complete || stat.Exit > -1 {
 					break
 				}
-				log.Debug().Msg(line)
+				log.Info(line)
 			}
 		}()
 
@@ -212,7 +231,7 @@ func (ovr *Overseer) Supervise(id string) {
 				if stat.Complete || stat.Exit > -1 {
 					break
 				}
-				log.Warn().Msg(line)
+				log.Error(line)
 			}
 		}()
 
@@ -225,7 +244,7 @@ func (ovr *Overseer) Supervise(id string) {
 			for range ticker.C {
 				err := syscall.Kill(pid, syscall.Signal(0))
 				if err != nil {
-					log.Debug().Str("Proc", id).Err(err).Msg("Process has died")
+					log.Info("Process has died:", Attrs{"id": id})
 					break
 				}
 			}
@@ -249,12 +268,11 @@ func (ovr *Overseer) Supervise(id string) {
 		delayStart += uint(b.Duration())
 
 		if retryTimes < 1 {
-			log.Warn().Str("Proc", id).Err(stat.Error).Msg("Process exited abnormally. Stopped.")
+			log.Error("Process exited abnormally. Stopped. Error: %s", stat.Error, Attrs{"id": id})
 			c.Stop() // just to make sure the status is updated
 			break
 		} else {
-			log.Warn().Str("Proc", id).Err(stat.Error).
-				Msgf("Process exited abnormally. Restarting [%d]", retryTimes+1)
+			log.Error("Process exited abnormally. Restarting [%d]. Error: %s", retryTimes+1, stat.Error, Attrs{"id": id})
 		}
 
 		ovr.lock.Lock()
@@ -267,7 +285,7 @@ func (ovr *Overseer) Supervise(id string) {
 
 	b.Reset() // clean backoff
 	c.Stop()  // just to make sure the status is updated
-	log.Info().Str("Proc", id).Msg("Stop overseeing process")
+	log.Info("Stop overseeing process:", Attrs{"id": id})
 }
 
 // StopAll cycles and kills all child procs. Used when exiting the program.
