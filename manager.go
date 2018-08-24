@@ -45,8 +45,8 @@ func NewOverseer() *Overseer {
 
 // ListAll returns the names of all the processes.
 func (ovr *Overseer) ListAll() []string {
-	ovr.lock.Lock()
 	ids := []string{}
+	ovr.lock.Lock()
 	for id := range ovr.procs {
 		ids = append(ids, id)
 	}
@@ -57,24 +57,35 @@ func (ovr *Overseer) ListAll() []string {
 
 // Add (register) a process, without starting it.
 func (ovr *Overseer) Add(id string, args ...string) *ChildProcess {
-	ovr.lock.Lock()
-	c := NewChild(args[0], args[1:]...)
-	ovr.procs[id] = c
-	ovr.lock.Unlock()
-	log.Info("Add process:", Attrs{
-		"id":   id,
-		"name": c.Name,
-		"args": c.Args,
-	})
-	return c
+	_, exists := ovr.procs[id]
+	if exists {
+		log.Info("Cannot add process, because it exists already:", Attrs{"id": id})
+		return nil
+	} else {
+		c := NewChild(args[0], args[1:]...)
+		log.Info("Add process:", Attrs{
+			"id":   id,
+			"name": c.Name,
+			"args": c.Args,
+		})
+		ovr.lock.Lock()
+		ovr.procs[id] = c
+		ovr.lock.Unlock()
+		return c
+	}
 }
 
-// Remove (un-register) a process, without stopping it.
+// Remove (un-register) a process, if it's not running.
 func (ovr *Overseer) Remove(id string) {
-	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
-	log.Info("Rem process:", Attrs{"id": id})
-	delete(ovr.procs, id)
+	stat := ovr.Status(id)
+	if stat.Complete {
+		log.Info("Rem process:", Attrs{"id": id})
+		ovr.lock.Lock()
+		delete(ovr.procs, id)
+		ovr.lock.Unlock()
+	} else {
+		log.Info("Cannot rem process, because it's still running:", Attrs{"id": id})
+	}
 }
 
 // Status returns a child process status.
@@ -100,6 +111,7 @@ func (ovr *Overseer) Start(id string) cmd.Status {
 	ovr.lock.Lock()
 	c := ovr.procs[id]
 	ovr.lock.Unlock()
+
 	log.Info("Start process:", Attrs{
 		"id":   id,
 		"name": c.Name,
@@ -115,8 +127,7 @@ func (ovr *Overseer) Stop(id string) error {
 	c := ovr.procs[id]
 	ovr.lock.Unlock()
 
-	err := c.Stop()
-	if err != nil {
+	if err := c.Stop(); err != nil {
 		log.Error("Cannot stop process:", Attrs{"id": id})
 		return err
 	}
