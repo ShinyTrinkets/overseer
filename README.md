@@ -24,6 +24,13 @@ The useful methods are:
 For examples of usage, please check the tests, for now.
 
 
+## Similar libraries
+
+* https://github.com/go-cmd/cmd - os/exec.Cmd with concurrent-safe access, real-time streaming output and complete runtime/return status. Overseer is based off this one.
+* https://github.com/immortal/immortal - A *nix cross-platform (OS agnostic) supervisor. The real deal.
+* https://github.com/ochinchina/supervisord - A Golang supervisor implementation, inspired by Python supervisord.
+
+
 Icon is made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a> and licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a>.
 
 -----
