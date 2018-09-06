@@ -7,7 +7,7 @@ import (
 
 func TestSimpleProcess(t *testing.T) {
 	assert := assert.New(t)
-	c := NewChild("ls")
+	c := NewCmd("ls")
 
 	assert.Equal(c.DelayStart, defaultDelayStart, "Wrong default delay start")
 	assert.Equal(c.RetryTimes, defaultRetryTimes, "Wrong default retry times")
@@ -23,12 +23,12 @@ func TestCloneProcess(t *testing.T) {
 	)
 
 	assert := assert.New(t)
-	c1 := NewChild("ls")
+	c1 := NewCmd("ls")
 	c1.SetDir("/")
 	c1.SetDelayStart(delay)
 	c1.SetRetryTimes(retry)
 
-	c2 := c1.CloneChild()
+	c2 := c1.CloneCmd()
 
 	assert.Equal(c1.Dir, c2.Dir)
 	assert.Equal(c1.Env, c2.Env)

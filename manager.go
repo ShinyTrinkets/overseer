@@ -7,7 +7,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ShinyTrinkets/go-cmd"
 	"github.com/azer/logger"
 	DEATH "gopkg.in/vrecan/death.v3"
 )
@@ -18,7 +17,7 @@ const timeUnit = 100 * time.Millisecond
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
-	procs    map[string]*ChildProcess
+	procs    map[string]*Cmd
 	lock     sync.Mutex
 	stopping bool
 }
@@ -33,7 +32,7 @@ func NewOverseer() *Overseer {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	ovr := &Overseer{
-		procs: make(map[string]*ChildProcess),
+		procs: make(map[string]*Cmd),
 	}
 	// Catch death signals and stop all child procs on exit
 	death := DEATH.NewDeath(syscall.SIGINT, syscall.SIGTERM)
@@ -56,13 +55,13 @@ func (ovr *Overseer) ListAll() []string {
 }
 
 // Add (register) a process, without starting it.
-func (ovr *Overseer) Add(id string, args ...string) *ChildProcess {
+func (ovr *Overseer) Add(id string, args ...string) *Cmd {
 	_, exists := ovr.procs[id]
 	if exists {
 		log.Info("Cannot add process, because it exists already:", Attrs{"id": id})
 		return nil
 	} else {
-		c := NewChild(args[0], args[1:]...)
+		c := NewCmd(args[0], args[1:]...)
 		log.Info("Add process:", Attrs{
 			"id":   id,
 			"name": c.Name,
@@ -90,7 +89,7 @@ func (ovr *Overseer) Remove(id string) {
 
 // Status returns a child process status.
 // PID, Complete or not, Exit code, Error, Runtime seconds, Stdout, Stderr
-func (ovr *Overseer) Status(id string) cmd.Status {
+func (ovr *Overseer) Status(id string) Status {
 	ovr.lock.Lock()
 	c := ovr.procs[id]
 	ovr.lock.Unlock()
@@ -107,7 +106,7 @@ func (ovr *Overseer) ToJSON(id string) JSONProcess {
 
 // Start the process and block until it finishes.
 // The process can be started again, if needed.
-func (ovr *Overseer) Start(id string) cmd.Status {
+func (ovr *Overseer) Start(id string) Status {
 	ovr.lock.Lock()
 	c := ovr.procs[id]
 	ovr.lock.Unlock()
@@ -289,7 +288,7 @@ func (ovr *Overseer) Supervise(id string) {
 		ovr.lock.Lock()
 		delete(ovr.procs, id)
 		// overwrite the top variable
-		c = c.CloneChild()
+		c = c.CloneCmd()
 		ovr.procs[id] = c
 		ovr.lock.Unlock()
 	}
