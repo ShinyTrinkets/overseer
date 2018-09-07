@@ -3,6 +3,9 @@
 // reading output (STDOUT and STDERR) while a command is running and killing a
 // command. All operations are safe to call from multiple goroutines.
 //
+// Credit: https://github.com/go-cmd/cmd
+// Copyright (c) 2017 go-cmd & contribuitors
+//
 // A basic example that runs env and prints its output:
 //
 //   import (
@@ -74,6 +77,7 @@ type Cmd struct {
 	*sync.Mutex
 	started    bool          // cmd.Start called, no error
 	stopped    bool          // Stop called
+	signaled   bool          // Signal called, from inside or outside
 	done       bool          // run() done
 	final      bool          // status finalized in Status
 	startTime  time.Time     // if started true
@@ -165,8 +169,8 @@ type Options struct {
 	Streaming bool
 }
 
-// NewCmdOptions creates a new Cmd with options. The command is not started
-// until Start is called.
+// NewCmdOptions creates a new Cmd with options.
+// The command is not started until Start is called.
 func NewCmdOptions(options Options, name string, args ...string) *Cmd {
 	out := NewCmd(name, args...)
 	out.buffered = options.Buffered
@@ -193,7 +197,7 @@ func (c *Cmd) CloneCmd() *Cmd {
 	return clone
 }
 
-// ToJSON returns more detailed info about a child process.
+// ToJSON returns JSON friendly detailed info about the Cmd.
 func (c *Cmd) ToJSON() JSONProcess {
 	s := c.Status()
 	cmd := fmt.Sprint(c.Name, " ", c.Args)
@@ -285,14 +289,27 @@ func (c *Cmd) Stop() error {
 		return nil
 	}
 
-	// Flag that command was stopped, it didn't complete. This results in
-	// status.Complete = false
+	// Flag that command was stopped, it didn't complete.
+	// This results in status.Complete = false
 	c.stopped = true
 
 	// Signal the process group (-pid), not just the process, so that the process
 	// and all its children are signaled. Else, child procs can keep running and
 	// keep the stdout/stderr fd open and cause cmd.Wait to hang.
 	return syscall.Kill(-c.status.PID, syscall.SIGTERM)
+}
+
+// Signal sends OS signal to the process group.
+func (c *Cmd) Signal(sig syscall.Signal) error {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.statusChan == nil || !c.started || c.done {
+		return nil
+	}
+
+	// Signal the process group (-pid)
+	return syscall.Kill(-c.status.PID, sig)
 }
 
 // Status returns the Status of the command at any time. It is safe to call
@@ -429,7 +446,7 @@ func (c *Cmd) run() {
 	// "If the command fails to run or doesn't complete successfully, the error
 	// is of type *ExitError. Other error types may be returned for I/O problems."
 	exitCode := 0
-	signaled := false
+	c.signaled = false
 	if err != nil {
 		switch err.(type) {
 		case *exec.ExitError:
@@ -446,7 +463,7 @@ func (c *Cmd) run() {
 			if waitStatus, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				exitCode = waitStatus.ExitStatus() // -1 if signaled
 				if waitStatus.Signaled() {
-					signaled = true
+					c.signaled = true
 					err = errors.New(exiterr.Error()) // "signal: terminated"
 				}
 			}
@@ -457,7 +474,7 @@ func (c *Cmd) run() {
 
 	// Set final status
 	c.Lock()
-	if !c.stopped && !signaled {
+	if !c.stopped && !c.signaled {
 		c.status.Complete = true
 	}
 	c.status.Runtime = now.Sub(c.startTime).Seconds()

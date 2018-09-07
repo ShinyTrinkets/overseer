@@ -1,5 +1,10 @@
+// Credit: https://github.com/go-cmd/cmd
+
 package overseer_test
 
+// Currently using go-test/deep here
+// and testify/assert for manager_test
+// Not optimal
 import (
 	"errors"
 	"io/ioutil"

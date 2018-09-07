@@ -104,21 +104,6 @@ func (ovr *Overseer) ToJSON(id string) JSONProcess {
 	return c.ToJSON()
 }
 
-// Start the process and block until it finishes.
-// The process can be started again, if needed.
-func (ovr *Overseer) Start(id string) Status {
-	ovr.lock.Lock()
-	c := ovr.procs[id]
-	ovr.lock.Unlock()
-
-	log.Info("Start process:", Attrs{
-		"id":   id,
-		"name": c.Name,
-		"args": c.Args,
-	})
-	return <-c.Start()
-}
-
 // Stop the process by sending its process group a SIGTERM signal.
 // The process can be started again, if needed.
 func (ovr *Overseer) Stop(id string) error {
@@ -137,8 +122,17 @@ func (ovr *Overseer) Stop(id string) error {
 
 // Signal sends OS signal to the process group.
 func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
-	stat := ovr.Status(id)
-	return syscall.Kill(-stat.PID, sig)
+	ovr.lock.Lock()
+	c := ovr.procs[id]
+	ovr.lock.Unlock()
+
+	if err := c.Signal(sig); err != nil {
+		log.Error("Cannot signal process:", Attrs{"id": id, "sig": sig})
+		return err
+	}
+
+	log.Info("Signel process:", Attrs{"id": id, "sig": sig})
+	return nil
 }
 
 // SuperviseAll is the *main* function.
