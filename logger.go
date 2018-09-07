@@ -7,8 +7,6 @@ type Logger interface {
 
 type Attrs map[string]interface{}
 
-var log Logger
-
-// func SetupLogger(l Logger) {
-// 	log = Logging(l)
-// }
+func NewLogger(name string) Logger {
+	return Logger
+}

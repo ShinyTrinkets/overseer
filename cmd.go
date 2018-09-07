@@ -132,6 +132,20 @@ type Status struct {
 	Stderr   []string // buffered STDERR; see Cmd.Status for more info
 }
 
+// Options represents customizations for NewCmdOptions.
+type Options struct {
+	// If Buffered is true, STDOUT and STDERR are written to Status.Stdout and
+	// Status.Stderr. The caller can call Cmd.Status to read output at intervals.
+	// See Cmd.Status for more info.
+	Buffered bool
+
+	// If Streaming is true, Cmd.Stdout and Cmd.Stderr channels are created and
+	// STDOUT and STDERR output lines are written them in real time. This is
+	// faster and more efficient than polling Cmd.Status. The caller must read both
+	// streaming channels, else lines are dropped silently.
+	Streaming bool
+}
+
 // NewCmd creates a new Cmd for the given command name and arguments. The command
 // is not started until Start is called. Output buffering is on, streaming output
 // is off. To control output, use NewCmdOptions instead.
@@ -155,30 +169,16 @@ func NewCmd(name string, args ...string) *Cmd {
 	}
 }
 
-// Options represents customizations for NewCmdOptions.
-type Options struct {
-	// If Buffered is true, STDOUT and STDERR are written to Status.Stdout and
-	// Status.Stderr. The caller can call Cmd.Status to read output at intervals.
-	// See Cmd.Status for more info.
-	Buffered bool
-
-	// If Streaming is true, Cmd.Stdout and Cmd.Stderr channels are created and
-	// STDOUT and STDERR output lines are written them in real time. This is
-	// faster and more efficient than polling Cmd.Status. The caller must read both
-	// streaming channels, else lines are dropped silently.
-	Streaming bool
-}
-
 // NewCmdOptions creates a new Cmd with options.
 // The command is not started until Start is called.
 func NewCmdOptions(options Options, name string, args ...string) *Cmd {
-	out := NewCmd(name, args...)
-	out.buffered = options.Buffered
+	c := NewCmd(name, args...)
+	c.buffered = options.Buffered
 	if options.Streaming {
-		out.Stdout = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
-		out.Stderr = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
+		c.Stdout = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
+		c.Stderr = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
 	}
-	return out
+	return c
 }
 
 // CloneCmd clones a Cmd. All the configs are transferred,

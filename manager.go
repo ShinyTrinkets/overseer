@@ -1,18 +1,22 @@
 package overseer
 
 import (
+	"fmt"
 	"math/rand"
 	"sort"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/azer/logger"
+	// "github.com/azer/logger"
 	DEATH "gopkg.in/vrecan/death.v3"
 )
 
 // Tick time unit, used when scanning the procs to see if they're alive.
 const timeUnit = 100 * time.Millisecond
+
+// Global log instance
+var log Logger
 
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
@@ -27,7 +31,7 @@ type Overseer struct {
 func NewOverseer() *Overseer {
 	// Setup the logs
 	// TODO: This should be customizable
-	log = logger.New("overseer")
+	log = NewLogger("overseer")
 	// Reset the random seed, for backoff jitter
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -61,7 +65,11 @@ func (ovr *Overseer) Add(id string, args ...string) *Cmd {
 		log.Info("Cannot add process, because it exists already:", Attrs{"id": id})
 		return nil
 	} else {
-		c := NewCmd(args[0], args[1:]...)
+		c := NewCmdOptions(
+			Options{Buffered: false, Streaming: true},
+			args[0],
+			args[1:]...,
+		)
 		log.Info("Add process:", Attrs{
 			"id":   id,
 			"name": c.Name,
@@ -179,10 +187,10 @@ func (ovr *Overseer) Supervise(id string) {
 
 	delayStart := c.DelayStart
 	retryTimes := c.RetryTimes
+	cmdArg := fmt.Sprint(c.Name, " ", c.Args)
 
 	// Overwrite the global log
-	// TODO: This should be customizable
-	var log = logger.New("proc")
+	var log = NewLogger("proc")
 
 	log.Info("Start overseeing process:", Attrs{"id": id})
 
@@ -202,8 +210,7 @@ func (ovr *Overseer) Supervise(id string) {
 		log.Info("Start process:", Attrs{
 			"id":         id,
 			"dir":        c.Dir,
-			"name":       c.Name,
-			"args":       c.Args,
+			"cmd":        cmdArg,
 			"delayStart": delayStart,
 			"retryTimes": retryTimes,
 		})
@@ -213,7 +220,9 @@ func (ovr *Overseer) Supervise(id string) {
 
 		// Process each line of STDOUT
 		go func() {
+			log.Info("Watching STDOUT")
 			for line := range c.Stdout {
+				log.Info(line)
 				if ovr.stopping {
 					break
 				}
@@ -221,13 +230,14 @@ func (ovr *Overseer) Supervise(id string) {
 				if stat.Complete || stat.Exit > -1 {
 					break
 				}
-				log.Info(line)
 			}
 		}()
 
 		// Process each line of STDERR
 		go func() {
+			log.Info("Watching STDERR")
 			for line := range c.Stderr {
+				log.Error(line)
 				if ovr.stopping {
 					break
 				}
@@ -235,7 +245,6 @@ func (ovr *Overseer) Supervise(id string) {
 				if stat.Complete || stat.Exit > -1 {
 					break
 				}
-				log.Error(line)
 			}
 		}()
 
@@ -289,7 +298,7 @@ func (ovr *Overseer) Supervise(id string) {
 
 	b.Reset() // clean backoff
 	c.Stop()  // just to make sure the status is updated
-	log.Info("Stop overseeing process:", Attrs{"id": id})
+	log.Info("Stop overseeing process:", Attrs{"id": id, "cmd": cmdArg})
 }
 
 // StopAll cycles and kills all child procs. Used when exiting the program.
