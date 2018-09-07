@@ -220,7 +220,6 @@ func (ovr *Overseer) Supervise(id string) {
 
 		// Process each line of STDOUT
 		go func() {
-			log.Info("Watching STDOUT")
 			for line := range c.Stdout {
 				log.Info(line)
 				if ovr.stopping {
@@ -235,7 +234,6 @@ func (ovr *Overseer) Supervise(id string) {
 
 		// Process each line of STDERR
 		go func() {
-			log.Info("Watching STDERR")
 			for line := range c.Stderr {
 				log.Error(line)
 				if ovr.stopping {

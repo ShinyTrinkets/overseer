@@ -4,10 +4,19 @@ package overseer
 // and go-test/deep for cmd_test
 // Not optimal
 import (
+	"github.com/azer/logger"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 	"time"
 )
+
+func TestMain(m *testing.M) {
+	SetupLogBuilder(func(name string) Logger {
+			return logger.New(name)
+	})
+	os.Exit(m.Run())
+}
 
 func TestSimpleOverseer(t *testing.T) {
 	assert := assert.New(t)
