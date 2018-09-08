@@ -77,7 +77,7 @@ type Cmd struct {
 	*sync.Mutex
 	started    bool          // cmd.Start called, no error
 	stopped    bool          // Stop called
-	signaled   bool          // Signal called, from inside or outside
+	signaled   bool          // Signal was called
 	done       bool          // run() done
 	final      bool          // status finalized in Status
 	startTime  time.Time     // if started true

@@ -13,7 +13,7 @@ import (
 
 func TestMain(m *testing.M) {
 	SetupLogBuilder(func(name string) Logger {
-			return logger.New(name)
+		return logger.New(name)
 	})
 	os.Exit(m.Run())
 }
