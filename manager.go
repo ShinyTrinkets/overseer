@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	// "github.com/azer/logger"
+	. "github.com/ShinyTrinkets/meta-logger"
 	DEATH "gopkg.in/vrecan/death.v3"
 )
 
