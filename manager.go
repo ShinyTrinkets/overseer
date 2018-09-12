@@ -29,8 +29,7 @@ type Overseer struct {
 // NewOverseer creates a new Overseer.
 // After creating it, add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
-	// Setup the logs
-	// TODO: This should be customizable
+	// Setup the logs by calling user's provided log builder
 	log = NewLogger("overseer")
 	// Reset the random seed, for backoff jitter
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -46,7 +45,7 @@ func NewOverseer() *Overseer {
 	return ovr
 }
 
-// ListAll returns the names of all the processes.
+// ListAll returns the names of all the procs in alphabetic order.
 func (ovr *Overseer) ListAll() []string {
 	ids := []string{}
 	ovr.lock.Lock()
@@ -58,6 +57,7 @@ func (ovr *Overseer) ListAll() []string {
 	return ids
 }
 
+// HasProc checks if a proc has been added to the manager.
 func (ovr *Overseer) HasProc(id string) bool {
 	_, exists := ovr.procs[id]
 	return exists
@@ -107,20 +107,20 @@ func (ovr *Overseer) Remove(id string) bool {
 	}
 }
 
-// Status returns a child process status.
-// PID, Exit code, Error, Runtime seconds, Stdout, Stderr
+// Status returns a child process status
+// (PID, Exit code, Error, Runtime seconds, Stdout, Stderr)
 func (ovr *Overseer) Status(id string) Status {
 	ovr.lock.Lock()
+	defer ovr.lock.Unlock()
 	c := ovr.procs[id]
-	ovr.lock.Unlock()
 	return c.Status()
 }
 
 // ToJSON returns a more detailed process status, ready to be converted to JSON.
 func (ovr *Overseer) ToJSON(id string) JSONProcess {
 	ovr.lock.Lock()
+	defer ovr.lock.Unlock()
 	c := ovr.procs[id]
-	ovr.lock.Unlock()
 	return c.ToJSON()
 }
 

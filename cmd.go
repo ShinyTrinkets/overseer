@@ -361,7 +361,7 @@ func (c *Cmd) Status() Status {
 	}
 
 	if c.IsFinalState() {
-		// No longer running
+		// No longer running and the cmd buffer wasn't flushed
 		if c.buffered && c.status.Stdout == nil {
 			c.status.Stdout = c.stdout.Lines()
 			c.status.Stderr = c.stderr.Lines()
@@ -395,7 +395,9 @@ func (c *Cmd) run() {
 		close(c.doneChan)
 	}()
 
+	c.Lock()
 	c.setState(STARTING)
+	c.Unlock()
 
 	// //////////////////////////////////////////////////////////////////////
 	// Setup command
@@ -484,7 +486,9 @@ func (c *Cmd) run() {
 			if waitStatus, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				exitCode = waitStatus.ExitStatus() // -1 if signaled
 				if waitStatus.Signaled() {
+					c.Lock()
 					c.setState(INTERRUPT)
+					c.Unlock()
 					err = errors.New(exiterr.Error()) // "signal: terminated"
 				}
 			}
