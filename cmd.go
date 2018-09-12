@@ -95,7 +95,7 @@ type JSONProcess struct {
 	Error      error     `json:"error"`    // Go error
 	RunTime    float64   `json:"runTime"`  // seconds, zero if Cmd not started
 	StartTime  time.Time `json:"startTime"`
-	Env        []string  `json:"end"`
+	// Env        []string  `json:"env"`   // Exposing the ENV can be a security issue
 	Dir        string    `json:"dir"`
 	DelayStart uint      `json:"delayStart"`
 	RetryTimes uint      `json:"retryTimes"`
@@ -204,7 +204,7 @@ func (c *Cmd) ToJSON() JSONProcess {
 		s.Error,
 		s.Runtime,
 		startTime,
-		c.Env,
+		// c.Env,
 		c.Dir,
 		c.DelayStart,
 		c.RetryTimes,
