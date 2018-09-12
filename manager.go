@@ -58,6 +58,11 @@ func (ovr *Overseer) ListAll() []string {
 	return ids
 }
 
+func (ovr *Overseer) HasProc(id string) bool {
+	_, exists := ovr.procs[id]
+	return exists
+}
+
 // Add (register) a process, without starting it.
 func (ovr *Overseer) Add(id string, args ...string) *Cmd {
 	_, exists := ovr.procs[id]
@@ -83,20 +88,27 @@ func (ovr *Overseer) Add(id string, args ...string) *Cmd {
 }
 
 // Remove (un-register) a process, if it's not running.
-func (ovr *Overseer) Remove(id string) {
-	stat := ovr.Status(id)
-	if stat.Complete {
+func (ovr *Overseer) Remove(id string) bool {
+	_, exists := ovr.procs[id]
+	if !exists {
+		return false
+	}
+	ovr.lock.Lock()
+	defer ovr.lock.Unlock()
+	c := ovr.procs[id]
+
+	if c.State == INITIAL || c.IsFinalState() {
 		log.Info("Rem process:", Attrs{"id": id})
-		ovr.lock.Lock()
 		delete(ovr.procs, id)
-		ovr.lock.Unlock()
+		return true
 	} else {
 		log.Info("Cannot rem process, because it's still running:", Attrs{"id": id})
+		return false
 	}
 }
 
 // Status returns a child process status.
-// PID, Complete or not, Exit code, Error, Runtime seconds, Stdout, Stderr
+// PID, Exit code, Error, Runtime seconds, Stdout, Stderr
 func (ovr *Overseer) Status(id string) Status {
 	ovr.lock.Lock()
 	c := ovr.procs[id]
@@ -160,10 +172,10 @@ func (ovr *Overseer) SuperviseAll() {
 
 		allDone := true
 		for _, p := range ovr.procs {
-			stat := p.Status()
-			if stat.Complete {
+			if p.IsFinalState() {
 				continue // the process is dead, nothing to do
 			}
+			stat := p.Status()
 			err := syscall.Kill(stat.PID, syscall.Signal(0))
 			if err != nil {
 				continue // the process is dead, nothing to do
@@ -226,7 +238,7 @@ func (ovr *Overseer) Supervise(id string) {
 					break
 				}
 				stat := c.Status()
-				if stat.Complete || stat.Exit > -1 {
+				if c.IsFinalState() || stat.Exit > -1 { // stat.Exit is really needed ??
 					break
 				}
 			}
@@ -240,7 +252,7 @@ func (ovr *Overseer) Supervise(id string) {
 					break
 				}
 				stat := c.Status()
-				if stat.Complete || stat.Exit > -1 {
+				if c.IsFinalState() || stat.Exit > -1 { // stat.Exit is really needed ??
 					break
 				}
 			}

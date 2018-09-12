@@ -55,8 +55,8 @@ func TestSleepOverseer(t *testing.T) {
 
 	json := ovr.ToJSON(id)
 	// JSON status should contain the same info
-	assert.False(json.Complete)
-	assert.Equal(json.ExitCode, -1)
+	assert.Equal("running", json.State)
+	assert.Equal(-1, json.ExitCode)
 	assert.True(json.PID > 0)
 	assert.Nil(json.Error)
 
@@ -66,8 +66,8 @@ func TestSleepOverseer(t *testing.T) {
 
 	// proc was killed
 	json = ovr.ToJSON(id)
-	assert.Equal(json.ExitCode, -1)
-	// assert.True(json.Complete)
+	assert.Equal("interrupted", json.State)
+	assert.Equal(-1, json.ExitCode)
 }
 
 func TestInvalidOverseer(t *testing.T) {
@@ -83,11 +83,11 @@ func TestInvalidOverseer(t *testing.T) {
 
 	assert.Equal(stat.Exit, -1, "Exit code should be negative")
 	assert.NotEqual(stat.Error, nil, "Error shouldn't be nil")
+	assert.Equal("fatal", json.State)
 	// JSON status should contain the same info
 	assert.Equal(stat.Exit, json.ExitCode)
 	assert.Equal(stat.Error, json.Error)
 	assert.Equal(stat.PID, json.PID)
-	assert.Equal(stat.Complete, json.Complete)
 
 	// try to stop a dead process
 	assert.Nil(ovr.Stop(id))
@@ -97,9 +97,13 @@ func TestInvalidOverseer(t *testing.T) {
 
 	time.Sleep(timeUnit)
 	stat = ovr.Status(id)
+	json = ovr.ToJSON(id)
 
+	// LS returns a positive code when given a wrong path,
+	// but the execution of the command overall is a success
 	assert.True(stat.Exit > 0, "Exit code should be positive")
 	assert.Nil(stat.Error, "Error should be nil")
+	assert.Equal("finished", json.State)
 }
 
 func TestSimpleSupervise(t *testing.T) {

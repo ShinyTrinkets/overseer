@@ -49,16 +49,18 @@ func TestCmdOK(t *testing.T) {
 	now := time.Now().Unix()
 
 	p := cmd.NewCmd("echo", "foo")
+	if p.State != cmd.INITIAL {
+		t.Errorf("got State %s, expected INITIAL", p.State)
+	}
 	gotStatus := <-p.Start()
 	expectStatus := cmd.Status{
-		Cmd:      "echo",
-		PID:      gotStatus.PID, // nondeterministic
-		Complete: true,
-		Exit:     0,
-		Error:    nil,
-		Runtime:  gotStatus.Runtime, // nondeterministic
-		Stdout:   []string{"foo"},
-		Stderr:   []string{},
+		Cmd:     "echo",
+		PID:     gotStatus.PID, // nondeterministic
+		Exit:    0,
+		Error:   nil,
+		Runtime: gotStatus.Runtime, // nondeterministic
+		Stdout:  []string{"foo"},
+		Stderr:  []string{},
 	}
 	if gotStatus.StartTs < now {
 		t.Error("StartTs < now")
@@ -77,20 +79,22 @@ func TestCmdOK(t *testing.T) {
 	if gotStatus.Runtime < 0 {
 		t.Errorf("got runtime %f, expected non-zero", gotStatus.Runtime)
 	}
+	if p.State != cmd.FINISHED {
+		t.Errorf("got state %s, expected FINISHED", p.State)
+	}
 }
 
 func TestCmdNonzeroExit(t *testing.T) {
 	p := cmd.NewCmd("false")
 	gotStatus := <-p.Start()
 	expectStatus := cmd.Status{
-		Cmd:      "false",
-		PID:      gotStatus.PID, // nondeterministic
-		Complete: true,
-		Exit:     1,
-		Error:    nil,
-		Runtime:  gotStatus.Runtime, // nondeterministic
-		Stdout:   []string{},
-		Stderr:   []string{},
+		Cmd:     "false",
+		PID:     gotStatus.PID, // nondeterministic
+		Exit:    1,
+		Error:   nil,
+		Runtime: gotStatus.Runtime, // nondeterministic
+		Stdout:  []string{},
+		Stderr:  []string{},
 	}
 	gotStatus.StartTs = 0
 	gotStatus.StopTs = 0
@@ -102,6 +106,9 @@ func TestCmdNonzeroExit(t *testing.T) {
 	}
 	if gotStatus.Runtime < 0 {
 		t.Errorf("got runtime %f, expected non-zero", gotStatus.Runtime)
+	}
+	if p.State != cmd.FINISHED {
+		t.Errorf("got state %s, expected FINISHED", p.State)
 	}
 }
 
@@ -143,14 +150,13 @@ func TestCmdStop(t *testing.T) {
 	gotStatus.StopTs = 0
 
 	expectStatus := cmd.Status{
-		Cmd:      "./testdata/count-and-sleep",
-		PID:      gotStatus.PID,                    // nondeterministic
-		Complete: false,                            // signaled by Stop
-		Exit:     -1,                               // signaled by Stop
-		Error:    errors.New("signal: terminated"), // signaled by Stop
-		Runtime:  gotStatus.Runtime,                // nondeterministic
-		Stdout:   []string{"1"},
-		Stderr:   []string{},
+		Cmd:     "./testdata/count-and-sleep",
+		PID:     gotStatus.PID,                    // nondeterministic
+		Exit:    -1,                               // signaled by Stop
+		Error:   errors.New("signal: terminated"), // signaled by Stop
+		Runtime: gotStatus.Runtime,                // nondeterministic
+		Stdout:  []string{"1"},
+		Stderr:  []string{},
 	}
 	if diffs := deep.Equal(gotStatus, expectStatus); diffs != nil {
 		t.Error(diffs)
@@ -160,6 +166,9 @@ func TestCmdStop(t *testing.T) {
 	}
 	if gotStatus.Runtime < 0 {
 		t.Errorf("got runtime %f, expected non-zero", gotStatus.Runtime)
+	}
+	if p.State != cmd.INTERRUPT {
+		t.Errorf("got state %s, expected INTERRUPT", p.State)
 	}
 
 	// Stop should be idempotent
@@ -181,22 +190,27 @@ func TestCmdNotStarted(t *testing.T) {
 
 	gotStatus := p.Status()
 	expectStatus := cmd.Status{
-		Cmd:      "echo",
-		PID:      0,
-		Complete: false,
-		Exit:     -1,
-		Error:    nil,
-		Runtime:  0,
-		Stdout:   nil,
-		Stderr:   nil,
+		Cmd:     "echo",
+		PID:     0,
+		Exit:    -1,
+		Error:   nil,
+		Runtime: 0,
+		Stdout:  nil,
+		Stderr:  nil,
 	}
 	if diffs := deep.Equal(gotStatus, expectStatus); diffs != nil {
 		t.Error(diffs)
+	}
+	if p.State != cmd.INITIAL {
+		t.Errorf("got state %s, expected INITIAL", p.State)
 	}
 
 	err := p.Stop()
 	if err != nil {
 		t.Error(err)
+	}
+	if p.State != cmd.INITIAL {
+		t.Errorf("got state %s, expected INITIAL", p.State)
 	}
 }
 
@@ -271,14 +285,13 @@ func TestCmdNotFound(t *testing.T) {
 	gotStatus.StartTs = 0
 	gotStatus.StopTs = 0
 	expectStatus := cmd.Status{
-		Cmd:      "cmd-does-not-exist",
-		PID:      0,
-		Complete: false,
-		Exit:     -1,
-		Error:    errors.New(`exec: "cmd-does-not-exist": executable file not found in $PATH`),
-		Runtime:  0,
-		Stdout:   nil,
-		Stderr:   nil,
+		Cmd:     "cmd-does-not-exist",
+		PID:     0,
+		Exit:    -1,
+		Error:   errors.New(`exec: "cmd-does-not-exist": executable file not found in $PATH`),
+		Runtime: 0,
+		Stdout:  []string{},
+		Stderr:  []string{},
 	}
 	if diffs := deep.Equal(gotStatus, expectStatus); diffs != nil {
 		t.Logf("%+v", gotStatus)
@@ -320,18 +333,20 @@ func TestCmdLost(t *testing.T) {
 	gotStatus.StopTs = 0
 
 	expectStatus := cmd.Status{
-		Cmd:      "./testdata/count-and-sleep",
-		PID:      s.PID,
-		Complete: false,
-		Exit:     -1,
-		Error:    errors.New("signal: killed"),
-		Runtime:  0,
-		Stdout:   []string{"1"},
-		Stderr:   []string{},
+		Cmd:     "./testdata/count-and-sleep",
+		PID:     s.PID,
+		Exit:    -1,
+		Error:   errors.New("signal: killed"),
+		Runtime: 0,
+		Stdout:  []string{"1"},
+		Stderr:  []string{},
 	}
 	if diffs := deep.Equal(gotStatus, expectStatus); diffs != nil {
 		t.Logf("%+v\n", gotStatus)
 		t.Error(diffs)
+	}
+	if p.State != cmd.INTERRUPT {
+		t.Errorf("got state %s, expected INTERRUPT", p.State)
 	}
 }
 
@@ -991,14 +1006,13 @@ func TestCmdEnvOK(t *testing.T) {
 	p.Env = []string{"FOO=foo"}
 	gotStatus := <-p.Start()
 	expectStatus := cmd.Status{
-		Cmd:      "env",
-		PID:      gotStatus.PID, // nondeterministic
-		Complete: true,
-		Exit:     0,
-		Error:    nil,
-		Runtime:  gotStatus.Runtime, // nondeterministic
-		Stdout:   []string{"FOO=foo"},
-		Stderr:   []string{},
+		Cmd:     "env",
+		PID:     gotStatus.PID, // nondeterministic
+		Exit:    0,
+		Error:   nil,
+		Runtime: gotStatus.Runtime, // nondeterministic
+		Stdout:  []string{"FOO=foo"},
+		Stderr:  []string{},
 	}
 	if gotStatus.StartTs < now {
 		t.Error("StartTs < now")
@@ -1016,5 +1030,8 @@ func TestCmdEnvOK(t *testing.T) {
 	}
 	if gotStatus.Runtime < 0 {
 		t.Errorf("got runtime %f, expected non-zero", gotStatus.Runtime)
+	}
+	if p.State != cmd.FINISHED {
+		t.Errorf("got State %s, expected FINISHED", p.State)
 	}
 }
