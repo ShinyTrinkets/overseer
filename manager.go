@@ -175,11 +175,6 @@ func (ovr *Overseer) SuperviseAll() {
 			if p.IsFinalState() {
 				continue // the process is dead, nothing to do
 			}
-			stat := p.Status()
-			err := syscall.Kill(stat.PID, syscall.Signal(0))
-			if err != nil {
-				continue // the process is dead, nothing to do
-			}
 			allDone = false // if at least 1 proc is running
 			break
 		}
@@ -206,7 +201,13 @@ func (ovr *Overseer) Supervise(id string) {
 
 	log.Info("Start overseeing process:", Attrs{"id": id})
 
+	jMax := delayStart
+	if delayStart < 10 {
+		jMax = 10
+	}
 	b := &Backoff{
+		Min:    1,
+		Max:    time.Duration(jMax),
 		Factor: 3,
 		Jitter: true,
 	}
@@ -238,7 +239,7 @@ func (ovr *Overseer) Supervise(id string) {
 					break
 				}
 				stat := c.Status()
-				if c.IsFinalState() || stat.Exit > -1 { // stat.Exit is really needed ??
+				if c.IsFinalState() || stat.Exit > -1 {
 					break
 				}
 			}
@@ -252,7 +253,7 @@ func (ovr *Overseer) Supervise(id string) {
 					break
 				}
 				stat := c.Status()
-				if c.IsFinalState() || stat.Exit > -1 { // stat.Exit is really needed ??
+				if c.IsFinalState() || stat.Exit > -1 {
 					break
 				}
 			}
@@ -265,6 +266,10 @@ func (ovr *Overseer) Supervise(id string) {
 			pid := c.Status().PID
 			ticker := time.NewTicker(4 * timeUnit)
 			for range ticker.C {
+				if c.IsFinalState() {
+					log.Info("Process in final state:", Attrs{"id": id})
+					break
+				}
 				err := syscall.Kill(pid, syscall.Signal(0))
 				if err != nil {
 					log.Info("Process has died:", Attrs{"id": id})
@@ -291,11 +296,11 @@ func (ovr *Overseer) Supervise(id string) {
 		delayStart += uint(b.Duration())
 
 		if retryTimes < 1 {
-			log.Error("Process exited abnormally. Stopped. Error: %s", stat.Error, Attrs{"id": id})
+			log.Error("Process exited abnormally. Stopped. Err: %s", stat.Error, Attrs{"id": id})
 			c.Stop() // just to make sure the status is updated
 			break
 		} else {
-			log.Error("Process exited abnormally. Restarting [%d]. Error: %s", retryTimes+1, stat.Error, Attrs{"id": id})
+			log.Error("Process exited abnormally. Err: %s. Restarting [%d]. ", stat.Error, retryTimes+1, Attrs{"id": id})
 		}
 
 		ovr.lock.Lock()

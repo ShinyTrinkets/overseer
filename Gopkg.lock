@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:80fe0369ce32868c8d98eb8877ca4b8ff700b3a5f1da8e4aed37ed9b742e6e60"
+  name = "github.com/ShinyTrinkets/meta-logger"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a38cb78d6430a375a8c09f17a1ef4db48677df72"
+  version = "v0.1.0"
+
+[[projects]]
   digest = "1:f89c911f2c7c5306eee33eb166cf334759dfd20b50555bd462b797b4be147026"
   name = "github.com/azer/is-terminal"
   packages = ["."]
@@ -61,6 +69,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/ShinyTrinkets/meta-logger",
     "github.com/azer/logger",
     "github.com/go-test/deep",
     "github.com/stretchr/testify/assert",
