@@ -15,14 +15,14 @@
 The useful methods are:
 
 * `NewOverseer()` - Returns a new instance of a process manager.
-  To register processes, use the `Add(id string, args ...string)` method, and to unregister use the `Remove(id string)` method.
+* To register processes, use the `Add(id string, args ...string)` method, and to unregister use the `Remove(id string)` method.
 * `SuperviseAll()` - This is the main function. Supervise all processes and block until they finish. This includes killing all the processes when the main program exits.
 * `Supervise(id string)` - Supervise one registered process and block until it finishes. This includes checking if the process was killed from the outside, delaying the start and restarting in case of failure.
 * `Stop(id string)` - Stops the process by sending its process group a SIGTERM signal.
-* `Signal(id string, sig syscall.Signal)` - Signal sends an OS signal to the process group.
+* `Signal(id string, sig syscall.Signal)` - Sends an OS signal to the process group.
 * `StopAll()` - Cycles and stops all processes by sending SIGTERM.
 
-For more examples of usage, please check the tests, for now.
+For more examples of usage, please check the tests (for now; because the API is not stable yet).
 
 
 ## Similar libraries

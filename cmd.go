@@ -425,6 +425,10 @@ func (c *Cmd) run() {
 		// Streaming only
 		cmd.Stdout = NewOutputStream(c.Stdout)
 		cmd.Stderr = NewOutputStream(c.Stderr)
+	} else {
+		// No output (effectively >/dev/null 2>&1)
+		cmd.Stdout = nil
+		cmd.Stderr = nil
 	}
 
 	// Set the runtime environment for the command as per os/exec.Cmd.  If Env
