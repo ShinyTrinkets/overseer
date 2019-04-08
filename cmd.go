@@ -283,6 +283,7 @@ func (c *Cmd) Start() <-chan Status {
 	c.Lock()
 	defer c.Unlock()
 
+	// Cannot Start if it's already started
 	if c.statusChan != nil {
 		return c.statusChan
 	}

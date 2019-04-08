@@ -197,6 +197,8 @@ func (ovr *Overseer) Supervise(id string) {
 	cmdArg := fmt.Sprint(c.Name, " ", c.Args)
 
 	// Overwrite the global log
+	// The STDOUT and STDERR of the process
+	// will also go into this log
 	var log = NewLogger("proc")
 
 	log.Info("Start overseeing process:", Attrs{"id": id})
