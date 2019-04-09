@@ -1,3 +1,4 @@
+//
 // Package cmd runs external commands with concurrent access to output and
 // status. It wraps the Go standard library os/exec.Command to correctly handle
 // reading output (STDOUT and STDERR) while a command is running and killing a
@@ -62,20 +63,24 @@ const (
 	defaultRetryTimes uint = 3
 )
 
+// StateListener is a simple func which receives the CmDstate on each change
+type StateListener func(CmdState)
+
 // Cmd represents an external command, similar to the Go built-in os/exec.Cmd.
 // A Cmd cannot be reused after calling Start. Exported fields are read-only and
 // should not be modified, except Env which can be set before calling Start.
 // To create a new Cmd, call NewCmd or NewCmdOptions.
 type Cmd struct {
-	Name       string
-	Args       []string
-	Env        []string
-	Dir        string
-	DelayStart uint        // Nr of milli-seconds to delay the start (used by the manager)
-	RetryTimes uint        // Nr of times to restart on failure (used by the manager)
-	Stdout     chan string // streaming STDOUT if enabled, else nil (see Options)
-	Stderr     chan string // streaming STDERR if enabled, else nil (see Options)
-	State      CmdState    // The state of the cmd (stopped, started, etc)
+	Name          string
+	Args          []string
+	Env           []string
+	Dir           string
+	DelayStart    uint          // Nr of milli-seconds to delay the start (used by the manager)
+	RetryTimes    uint          // Nr of times to restart on failure (used by the manager)
+	Stdout        chan string   // streaming STDOUT if enabled, else nil (see Options)
+	Stderr        chan string   // streaming STDERR if enabled, else nil (see Options)
+	State         CmdState      // The state of the cmd (stopped, started, etc)
+	stateListener StateListener // called when the Cmd changes its state
 	*sync.Mutex
 	startTime  time.Time
 	stdout     *OutputBuffer // low-level stdout buffering and streaming
@@ -239,6 +244,13 @@ func (c *Cmd) SetRetryTimes(retryTimes uint) {
 	c.RetryTimes = retryTimes
 }
 
+// SetStateListener adds a callback when the Cmd changes its state.
+func (c *Cmd) SetStateListener(cb StateListener) {
+	c.Lock()
+	defer c.Unlock()
+	c.stateListener = cb
+}
+
 // setState sets the new internal state and might be used to trigger events.
 // Contains a minimal validation of states.
 func (c *Cmd) setState(state CmdState) {
@@ -246,13 +258,24 @@ func (c *Cmd) setState(state CmdState) {
 	// Finish states are final and cannot be changed
 	if c.State == state || c.IsFinalState() {
 		// skip
-	} else if c.State == INITIAL {
-		// The only possible state at this point is starting
+	} else if c.IsInitialState() {
+		// The only possible state after "initial" is "starting"
 		c.State = STARTING
 	} else {
 		c.State = state
 	}
-	// TODO Trigger some events somewhere in here
+	// Trigger the callback on state change
+	if c.stateListener != nil {
+		defer c.stateListener(state)
+	}
+}
+
+// IsInitialState returns true if the Cmd is in the initial state.
+func (c *Cmd) IsInitialState() bool {
+	if c.State == INITIAL {
+		return true
+	}
+	return false
 }
 
 // IsFinalState returns true if the Cmd is in a final state.
@@ -303,7 +326,7 @@ func (c *Cmd) Stop() error {
 
 	// Nothing to stop if Start hasn't been called, or the proc hasn't started,
 	// or it's already done.
-	if c.statusChan == nil || c.State == INITIAL || c.IsFinalState() {
+	if c.statusChan == nil || c.IsInitialState() || c.IsFinalState() {
 		return nil
 	}
 
@@ -321,7 +344,7 @@ func (c *Cmd) Signal(sig syscall.Signal) error {
 	c.Lock()
 	defer c.Unlock()
 
-	if c.statusChan == nil || c.State == INITIAL || c.IsFinalState() {
+	if c.statusChan == nil || c.IsInitialState() || c.IsFinalState() {
 		return nil
 	}
 
@@ -355,7 +378,7 @@ func (c *Cmd) Status() Status {
 	defer c.Unlock()
 
 	// Return default status if cmd hasn't been started
-	if c.statusChan == nil || c.State == INITIAL {
+	if c.statusChan == nil || c.IsInitialState() {
 		return c.status
 	}
 
@@ -692,7 +715,7 @@ LINES:
 		// we allow \r\n but strip the \r too by decrementing the offset for that byte.
 		lastChar := firstChar + newlineOffset // "line\n"
 		if newlineOffset > 0 && p[newlineOffset-1] == '\r' {
-			lastChar -= 1 // "line\r\n"
+			lastChar-- // "line\r\n"
 		}
 
 		// Send the line, prepend line buffer if set

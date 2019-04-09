@@ -4,12 +4,13 @@ package overseer
 // and go-test/deep for cmd_test
 // Not optimal
 import (
-	. "github.com/ShinyTrinkets/meta-logger"
-	"github.com/azer/logger"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
 	"time"
+
+	. "github.com/ShinyTrinkets/meta-logger"
+	"github.com/azer/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {

@@ -69,22 +69,21 @@ func (ovr *Overseer) Add(id string, args ...string) *Cmd {
 	if exists {
 		log.Info("Cannot add process, because it exists already:", Attrs{"id": id})
 		return nil
-	} else {
-		c := NewCmdOptions(
-			Options{Buffered: false, Streaming: true},
-			args[0],
-			args[1:]...,
-		)
-		log.Info("Add process:", Attrs{
-			"id":   id,
-			"name": c.Name,
-			"args": c.Args,
-		})
-		ovr.lock.Lock()
-		ovr.procs[id] = c
-		ovr.lock.Unlock()
-		return c
 	}
+	c := NewCmdOptions(
+		Options{Buffered: false, Streaming: true},
+		args[0],
+		args[1:]...,
+	)
+	log.Info("Add process:", Attrs{
+		"id":   id,
+		"name": c.Name,
+		"args": c.Args,
+	})
+	ovr.lock.Lock()
+	ovr.procs[id] = c
+	ovr.lock.Unlock()
+	return c
 }
 
 // Remove (un-register) a process, if it's not running.
@@ -97,14 +96,14 @@ func (ovr *Overseer) Remove(id string) bool {
 	defer ovr.lock.Unlock()
 	c := ovr.procs[id]
 
-	if c.State == INITIAL || c.IsFinalState() {
+	if c.IsInitialState() || c.IsFinalState() {
 		log.Info("Rem process:", Attrs{"id": id})
 		delete(ovr.procs, id)
 		return true
-	} else {
-		log.Info("Cannot rem process, because it's still running:", Attrs{"id": id})
-		return false
 	}
+
+	log.Info("Cannot rem process, because it's still running:", Attrs{"id": id})
+	return false
 }
 
 // Status returns a child process status

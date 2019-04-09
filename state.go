@@ -1,6 +1,6 @@
 package overseer
 
-// Command states
+// CmdState represents a state
 type CmdState uint
 
 const (
