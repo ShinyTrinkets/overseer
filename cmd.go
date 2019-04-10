@@ -81,6 +81,7 @@ type Cmd struct {
 	Stderr        chan string   // streaming STDERR if enabled, else nil (see Options)
 	State         CmdState      // The state of the cmd (stopped, started, etc)
 	stateListener StateListener // called when the Cmd changes its state
+	stateLock     *sync.Mutex
 	*sync.Mutex
 	startTime  time.Time
 	stdout     *OutputBuffer // low-level stdout buffering and streaming
@@ -156,6 +157,7 @@ func NewCmd(name string, args ...string) *Cmd {
 		RetryTimes: defaultRetryTimes,
 		buffered:   true,
 		Mutex:      &sync.Mutex{},
+		stateLock:  &sync.Mutex{},
 		status: Status{
 			Cmd:     name,
 			PID:     0,
@@ -259,10 +261,14 @@ func (c *Cmd) setState(state CmdState) {
 	if c.State == state || c.IsFinalState() {
 		// skip
 	} else if c.IsInitialState() {
+		c.stateLock.Lock()
 		// The only possible state after "initial" is "starting"
 		c.State = STARTING
+		c.stateLock.Unlock()
 	} else {
+		c.stateLock.Lock()
 		c.State = state
+		c.stateLock.Unlock()
 	}
 	// Trigger the callback on state change
 	if c.stateListener != nil {
@@ -272,6 +278,8 @@ func (c *Cmd) setState(state CmdState) {
 
 // IsInitialState returns true if the Cmd is in the initial state.
 func (c *Cmd) IsInitialState() bool {
+	c.stateLock.Lock()
+	defer c.stateLock.Unlock()
 	if c.State == INITIAL {
 		return true
 	}
@@ -281,6 +289,8 @@ func (c *Cmd) IsInitialState() bool {
 // IsFinalState returns true if the Cmd is in a final state.
 // Final states are definitive and cannot be exited from.
 func (c *Cmd) IsFinalState() bool {
+	c.stateLock.Lock()
+	defer c.stateLock.Unlock()
 	if c.State == INTERRUPT || c.State == FINISHED || c.State == FATAL {
 		return true
 	}
