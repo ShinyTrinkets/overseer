@@ -29,6 +29,9 @@ type Overseer struct {
 // NewOverseer creates a new Overseer.
 // After creating it, add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
+	if NewLogger == nil {
+		panic("Logger not initialized!")
+	}
 	// Setup the logs by calling user's provided log builder
 	log = NewLogger("overseer")
 	// Reset the random seed, for backoff jitter
