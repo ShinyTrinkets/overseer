@@ -52,6 +52,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -226,10 +227,12 @@ func (c *Cmd) SetDir(dir string) {
 
 // SetEnv sets the working directory of the command.
 // This can only have effect before starting the command.
+// The env should be in the form of KEY=value,
+// eg: EDITOR=vim
 func (c *Cmd) SetEnv(env []string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Env = env
+	c.Env = append(os.Environ(), env...)
 }
 
 // SetDelayStart sets the delay start in milli-seconds.
@@ -465,8 +468,8 @@ func (c *Cmd) run() {
 		cmd.Stderr = nil
 	}
 
-	// Set the runtime environment for the command as per os/exec.Cmd.  If Env
-	// is nil, use the current process' environment.
+	// Set the runtime environment for the command as per os/exec.Cmd.
+	// If Env is nil, use the current process' environment.
 	cmd.Env = c.Env
 	// Dir specifies the working directory of the command.
 	// If Dir is the empty string, this runs the command in the

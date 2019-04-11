@@ -15,10 +15,11 @@ import (
 
 // Process represents an OS process
 type Process struct {
-	Cmd   string `yaml:"cmd"`
-	Cwd   string `yaml:"cwd"`
-	Delay uint   `yaml:"delay"`
-	Retry uint   `yaml:"retry"`
+	Cmd   string   `yaml:"cmd"`
+	Cwd   string   `yaml:"cwd"`
+	Env   []string `yaml:"env"`
+	Delay uint     `yaml:"delay"`
+	Retry uint     `yaml:"retry"`
 }
 
 const (
@@ -37,8 +38,8 @@ func main() {
 }
 
 func cmdRunAll(cmd *cli.Cmd) {
-	cmd.Spec = "-c"
-	cfgFile := cmd.StringOpt("c config", "", "the config used to define procs")
+	cmd.Spec = "[-c]"
+	cfgFile := cmd.StringOpt("c config", "config.yml", "the config used to define procs")
 
 	cmd.Action = func() {
 		text, err := ioutil.ReadFile(*cfgFile)
@@ -70,6 +71,9 @@ func cmdRunAll(cmd *cli.Cmd) {
 			p := ovr.Add(id, args...)
 			if proc.Cwd != "" {
 				p.SetDir(proc.Cwd)
+			}
+			if len(proc.Env) > 0 {
+				p.SetEnv(proc.Env)
 			}
 			if proc.Delay > 0 {
 				p.SetDelayStart(proc.Delay)
