@@ -69,11 +69,10 @@ func cmdRunAll(cmd *cli.Cmd) {
 				continue
 			}
 			p := ovr.Add(id, args...)
+			p.SetEnv(append(os.Environ(), proc.Env...))
+
 			if proc.Cwd != "" {
 				p.SetDir(proc.Cwd)
-			}
-			if len(proc.Env) > 0 {
-				p.SetEnv(proc.Env)
 			}
 			if proc.Delay > 0 {
 				p.SetDelayStart(proc.Delay)

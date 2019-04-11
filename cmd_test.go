@@ -26,6 +26,7 @@ func TestCloneProcess(t *testing.T) {
 
 	c1 := cmd.NewCmd("ls")
 	c1.SetDir("/")
+	c1.SetEnv([]string{"Z=Z"})
 	c1.SetDelayStart(delay)
 	c1.SetRetryTimes(retry)
 

@@ -52,7 +52,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -232,7 +231,7 @@ func (c *Cmd) SetDir(dir string) {
 func (c *Cmd) SetEnv(env []string) {
 	c.Lock()
 	defer c.Unlock()
-	c.Env = append(os.Environ(), env...)
+	c.Env = env
 }
 
 // SetDelayStart sets the delay start in milli-seconds.
