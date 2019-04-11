@@ -10,7 +10,7 @@ import (
 	log "github.com/azer/logger"
 	cli "github.com/jawher/mow.cli"
 	quote "github.com/kballard/go-shellquote"
-	"gopkg.in/yaml.v2"
+	yml "gopkg.in/yaml.v2"
 )
 
 // Process represents an OS process
@@ -43,24 +43,29 @@ func cmdRunAll(cmd *cli.Cmd) {
 	cmd.Action = func() {
 		text, err := ioutil.ReadFile(*cfgFile)
 		if err != nil {
-			panic(err)
+			fmt.Printf("Cannot read config. Error: %v\n", err)
+			return
 		}
 
 		cfg := make(map[string]Process)
-		if err := yaml.Unmarshal(text, &cfg); err != nil {
-			panic(err)
+		if err := yml.Unmarshal(text, &cfg); err != nil {
+			fmt.Printf("Cannot parse config. Error: %v\n", err)
+			return
 		}
-		fmt.Printf("%#v\n\n", cfg)
 
+		fmt.Println("Starting procs. Press Ctrl+C to stop...")
 		ovr := overseer.NewOverseer()
 
 		for id, proc := range cfg {
+			fmt.Printf("PROC: %#v\n", proc)
 			if proc.Cmd == "" {
-				panic("Cmd cannot be empty!")
+				fmt.Printf("Proc '%s': Cmd field cannot be empty!\n", id)
+				continue
 			}
 			args, err := quote.Split(proc.Cmd)
 			if err != nil {
-				panic(err)
+				fmt.Printf("Proc '%s': Cannot split args. Error: %v\n", id, err)
+				continue
 			}
 			p := ovr.Add(id, args...)
 			if proc.Cwd != "" {
@@ -74,7 +79,6 @@ func cmdRunAll(cmd *cli.Cmd) {
 			}
 		}
 
-		fmt.Println("Starting procs. Press Ctrl+C to stop...")
 		ovr.SuperviseAll()
 		fmt.Println("\nShutdown.")
 	}
