@@ -73,7 +73,8 @@ func (b *Backoff) ForAttempt(attempt float64) time.Duration {
 	// keep within bounds
 	if dur < min {
 		return min
-	} else if dur > max {
+	}
+	if dur > max {
 		return max
 	}
 	return dur
