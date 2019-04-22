@@ -30,7 +30,10 @@ type Overseer struct {
 // After creating it, add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
 	if NewLogger == nil {
-		panic("Logger not initialized!")
+		// When the logger is not defined, use the basic logger
+		NewLogger = func(name string) Logger {
+			return &DefaultLogger{Name: name}
+		}
 	}
 	// Setup the logs by calling user's provided log builder
 	log = NewLogger("overseer")
