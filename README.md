@@ -12,6 +12,7 @@
 
 > Simple process manager library.
 
+
 The useful methods are:
 
 * `NewOverseer()` - Returns a new instance of a process manager.
@@ -22,7 +23,18 @@ The useful methods are:
 * `Signal(id string, sig syscall.Signal)` - Sends an OS signal to the process group.
 * `StopAll()` - Cycles and stops all processes by sending SIGTERM.
 
-For more examples of usage, please check the tests (for now; because the API is not stable yet).
+Highlights:
+
+* real-time stdout and stderr
+* real-time status
+* complete and consolidated return
+* proper process termination on exit
+* portable command line binary for managing procs
+* heavily tested, good coverage
+* no race conditions
+
+
+For examples of usage, please check the tests, or the command line script (for now). The API is not fixed yet.
 
 
 ## Similar libraries
