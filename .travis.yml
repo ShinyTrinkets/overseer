@@ -1,4 +1,8 @@
 language: go
 sudo: false
+
 go:
+  - "1.11"
   - "1.12"
+script:
+  - go test -v -race -cover
