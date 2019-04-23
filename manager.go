@@ -8,12 +8,21 @@ import (
 	"syscall"
 	"time"
 
-	. "github.com/ShinyTrinkets/meta-logger"
+	logr "github.com/ShinyTrinkets/meta-logger"
 	DEATH "gopkg.in/vrecan/death.v3"
 )
 
 // Tick time unit, used when scanning the procs to see if they're alive.
 const timeUnit = 100 * time.Millisecond
+
+type (
+	// Attrs is a type alias
+	Attrs = logr.Attrs
+	// Logger is a type alias
+	Logger = logr.Logger
+	// DefaultLogger is a type alias
+	DefaultLogger = logr.DefaultLogger
+)
 
 // Global log instance
 var log Logger
@@ -29,14 +38,14 @@ type Overseer struct {
 // NewOverseer creates a new Overseer.
 // After creating it, add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
-	if NewLogger == nil {
+	if logr.NewLogger == nil {
 		// When the logger is not defined, use the basic logger
-		NewLogger = func(name string) Logger {
+		logr.NewLogger = func(name string) Logger {
 			return &DefaultLogger{Name: name}
 		}
 	}
 	// Setup the logs by calling user's provided log builder
-	log = NewLogger("overseer")
+	log = logr.NewLogger("overseer")
 	// Reset the random seed, for backoff jitter
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -204,7 +213,7 @@ func (ovr *Overseer) Supervise(id string) {
 	// Overwrite the global log
 	// The STDOUT and STDERR of the process
 	// will also go into this log
-	var log = NewLogger("proc")
+	var log = logr.NewLogger("proc")
 
 	log.Info("Start overseeing process:", Attrs{"id": id})
 

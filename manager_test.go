@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/ShinyTrinkets/meta-logger"
+	logr "github.com/ShinyTrinkets/meta-logger"
 	"github.com/azer/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
-	SetupLogBuilder(func(name string) Logger {
+	logr.SetupLogBuilder(func(name string) Logger {
 		return logger.New(name)
 	})
 	os.Exit(m.Run())
