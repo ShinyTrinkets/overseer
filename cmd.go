@@ -71,8 +71,8 @@ type StateListener func(CmdState)
 // should not be modified, except Env which can be set before calling Start.
 // To create a new Cmd, call NewCmd or NewCmdOptions.
 type Cmd struct {
-	Name string
-	// Group         string
+	Name          string
+	Group         string
 	Args          []string
 	Env           []string
 	Dir           string
@@ -135,6 +135,12 @@ type Status struct {
 
 // Options represents customizations for NewCmdOptions.
 type Options struct {
+	Group      string
+	Dir        string
+	Env        []string
+	DelayStart uint
+	RetryTimes uint
+
 	// If Buffered is true, STDOUT and STDERR are written to Status.Stdout and
 	// Status.Stderr. The caller can call Cmd.Status to read output at intervals.
 	// See Cmd.Status for more info.
@@ -174,6 +180,21 @@ func NewCmd(name string, args ...string) *Cmd {
 // The command is not started until Start is called.
 func NewCmdOptions(options Options, name string, args ...string) *Cmd {
 	c := NewCmd(name, args...)
+	if options.Group != "" {
+		c.Group = options.Group
+	}
+	if options.Dir != "" {
+		c.Dir = options.Dir
+	}
+	if len(options.Env) > 0 {
+		c.Env = options.Env
+	}
+	if options.DelayStart > 0 {
+		c.DelayStart = options.DelayStart
+	}
+	if options.RetryTimes > 0 {
+		c.RetryTimes = options.RetryTimes
+	}
 	c.buffered = options.Buffered
 	if options.Streaming {
 		c.Stdout = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
@@ -186,15 +207,18 @@ func NewCmdOptions(options Options, name string, args ...string) *Cmd {
 // and the state of the original object is lost.
 func (c *Cmd) CloneCmd() *Cmd {
 	clone := NewCmdOptions(
-		Options{Buffered: false, Streaming: true},
+		Options{
+			Group:      c.Group,
+			Dir:        c.Dir,
+			Env:        c.Env,
+			DelayStart: c.DelayStart,
+			RetryTimes: c.RetryTimes,
+			Buffered:   c.buffered,
+			Streaming:  true,
+		},
 		c.Name,
 		c.Args...,
 	)
-	// transfer the config
-	clone.SetDir(c.Dir)
-	clone.SetEnv(c.Env)
-	clone.SetDelayStart(c.DelayStart)
-	clone.SetRetryTimes(c.RetryTimes)
 	return clone
 }
 
@@ -233,20 +257,6 @@ func (c *Cmd) SetEnv(env []string) {
 	c.Lock()
 	defer c.Unlock()
 	c.Env = env
-}
-
-// SetDelayStart sets the delay start in milli-seconds.
-func (c *Cmd) SetDelayStart(delayStart uint) {
-	c.Lock()
-	defer c.Unlock()
-	c.DelayStart = delayStart
-}
-
-// SetRetryTimes sets the times of restart in case of failure.
-func (c *Cmd) SetRetryTimes(retryTimes uint) {
-	c.Lock()
-	defer c.Unlock()
-	c.RetryTimes = retryTimes
 }
 
 // SetStateListener adds a callback when the Cmd changes its state.

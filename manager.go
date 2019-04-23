@@ -340,7 +340,9 @@ func (ovr *Overseer) StopAll() {
 	ovr.lock.Unlock()
 
 	for id, c := range ovr.procs {
-		c.SetRetryTimes(0) // Make sure the child doesn't restart
+		c.Lock()
+		c.RetryTimes = 0 // Make sure the child doesn't restart
+		c.Unlock()
 		ovr.Stop(id)
 	}
 }

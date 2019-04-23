@@ -70,16 +70,17 @@ func cmdRunAll(cmd *cli.Cmd) {
 			}
 			p := ovr.Add(id, args...)
 			p.SetEnv(append(os.Environ(), proc.Env...))
-
 			if proc.Cwd != "" {
 				p.SetDir(proc.Cwd)
 			}
+			p.Lock()
 			if proc.Delay > 0 {
-				p.SetDelayStart(proc.Delay)
+				p.DelayStart = proc.Delay
 			}
 			if proc.Retry > 0 {
-				p.SetRetryTimes(proc.Retry)
+				p.RetryTimes = proc.Retry
 			}
+			p.Unlock()
 		}
 
 		ovr.SuperviseAll()

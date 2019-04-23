@@ -19,19 +19,20 @@ import (
 )
 
 func TestCloneProcess(t *testing.T) {
-	var (
-		delay uint = 1
-		retry uint = 9
-	)
+	opt := cmd.Options{
+		Group:      "group1",
+		Dir:        "/tmp",
+		DelayStart: 1,
+		RetryTimes: 9,
+		Buffered:   true,
+	}
 
-	c1 := cmd.NewCmd("ls")
-	c1.SetDir("/")
-	c1.SetEnv([]string{"Z=Z"})
-	c1.SetDelayStart(delay)
-	c1.SetRetryTimes(retry)
-
+	c1 := cmd.NewCmdOptions(opt, "ls")
 	c2 := c1.CloneCmd()
 
+	if diffs := deep.Equal(c1.Group, c2.Group); diffs != nil {
+		t.Error(diffs)
+	}
 	if diffs := deep.Equal(c1.Dir, c2.Dir); diffs != nil {
 		t.Error(diffs)
 	}
