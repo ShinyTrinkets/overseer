@@ -1,5 +1,5 @@
-//
-// Package cmd runs external commands with concurrent access to output and
+// Package overseer ;
+// cmd runs external commands with concurrent access to output and
 // status. It wraps the Go standard library os/exec.Command to correctly handle
 // reading output (STDOUT and STDERR) while a command is running and killing a
 // command. All operations are safe to call from multiple goroutines.
@@ -71,7 +71,8 @@ type StateListener func(CmdState)
 // should not be modified, except Env which can be set before calling Start.
 // To create a new Cmd, call NewCmd or NewCmdOptions.
 type Cmd struct {
-	Name          string
+	Name string
+	// Group         string
 	Args          []string
 	Env           []string
 	Dir           string
@@ -258,10 +259,10 @@ func (c *Cmd) SetStateListener(cb StateListener) {
 // setState sets the new internal state and might be used to trigger events.
 // Contains a minimal validation of states.
 func (c *Cmd) setState(state CmdState) {
-	// If the new state is the old state
-	// Finish states are final and cannot be changed
+	// If the new state is the old state, skip
+	// Final states cannot be changed, skip
 	if c.State == state || c.IsFinalState() {
-		// skip
+		return
 	} else if c.IsInitialState() {
 		c.stateLock.Lock()
 		// The only possible state after "initial" is "starting"
