@@ -36,7 +36,7 @@ type Overseer struct {
 	stopping bool
 }
 
-// NewOverseer creates a new Overseer.
+// NewOverseer creates a new process manager.
 // After creating it, add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
 	if logr.NewLogger == nil {
@@ -86,10 +86,10 @@ func (ovr *Overseer) Add(id string, args ...string) *Cmd {
 		log.Info("Cannot add process, because it exists already:", Attrs{"id": id})
 		return nil
 	}
-	c := NewCmdOptions(
-		Options{Buffered: false, Streaming: true},
+	c := NewCmd(
 		args[0],
-		args[1:]...,
+		args[1:],
+		Options{Buffered: false, Streaming: true},
 	)
 	log.Info("Add process:", Attrs{
 		"id":   id,

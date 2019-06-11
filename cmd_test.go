@@ -27,7 +27,7 @@ func TestCloneProcess(t *testing.T) {
 		Buffered:   true,
 	}
 
-	c1 := cmd.NewCmdOptions(opt, "ls")
+	c1 := cmd.NewCmd("ls", []string{}, opt)
 	c2 := c1.CloneCmd()
 
 	if diffs := deep.Equal(c1.Group, c2.Group); diffs != nil {
@@ -50,7 +50,7 @@ func TestCloneProcess(t *testing.T) {
 func TestCmdOK(t *testing.T) {
 	now := time.Now().Unix()
 
-	p := cmd.NewCmd("echo", "foo")
+	p := cmd.NewCmd("echo", []string{"foo"}, cmd.Options{Buffered: true})
 	if p.State != cmd.INITIAL {
 		t.Errorf("got State %s, expected INITIAL", p.State)
 	}
@@ -87,7 +87,7 @@ func TestCmdOK(t *testing.T) {
 }
 
 func TestCmdNonzeroExit(t *testing.T) {
-	p := cmd.NewCmd("false")
+	p := cmd.NewCmd("false", []string{}, cmd.Options{Buffered: true})
 	gotStatus := <-p.Start()
 	expectStatus := cmd.Status{
 		Cmd:     "false",
@@ -119,7 +119,7 @@ func TestCmdStop(t *testing.T) {
 	// to kill the proc right after count "1" to ensure Stdout only contains "1"
 	// and also to ensure that the proc is really killed instantly because if
 	// it's not then timeout below will trigger.
-	p := cmd.NewCmd("./testdata/count-and-sleep", "3", "5")
+	p := cmd.NewCmd("./testdata/count-and-sleep", []string{"3", "5"}, cmd.Options{Buffered: true})
 
 	// Start process in bg and get chan to receive final Status when done
 	statusChan := p.Start()
@@ -188,7 +188,7 @@ func TestCmdStop(t *testing.T) {
 
 func TestCmdNotStarted(t *testing.T) {
 	// Call everything _but_ Start.
-	p := cmd.NewCmd("echo", "foo")
+	p := cmd.NewCmd("echo", []string{"foo"}, cmd.Options{Buffered: true})
 
 	gotStatus := p.Status()
 	expectStatus := cmd.Status{
@@ -228,7 +228,7 @@ func TestCmdOutput(t *testing.T) {
 	t.Logf("temp file: %s", tmpfile.Name())
 	os.Remove(tmpfile.Name())
 
-	p := cmd.NewCmd("./testdata/touch-file-count", tmpfile.Name())
+	p := cmd.NewCmd("./testdata/touch-file-count", []string{tmpfile.Name()}, cmd.Options{Buffered: true})
 
 	p.Start()
 
@@ -282,7 +282,7 @@ func TestCmdOutput(t *testing.T) {
 }
 
 func TestCmdNotFound(t *testing.T) {
-	p := cmd.NewCmd("cmd-does-not-exist")
+	p := cmd.NewCmd("cmd-does-not-exist", []string{}, cmd.Options{Buffered: true})
 	gotStatus := <-p.Start()
 	gotStatus.StartTs = 0
 	gotStatus.StopTs = 0
@@ -304,7 +304,7 @@ func TestCmdNotFound(t *testing.T) {
 func TestCmdLost(t *testing.T) {
 	// Test something like the kernel OOM killing the proc. So the proc is
 	// stopped outside our control.
-	p := cmd.NewCmd("./testdata/count-and-sleep", "3", "5")
+	p := cmd.NewCmd("./testdata/count-and-sleep", []string{"3", "5"}, cmd.Options{Buffered: true})
 
 	statusChan := p.Start()
 
@@ -379,7 +379,7 @@ func TestCmdBothOutput(t *testing.T) {
 	//   stdout 2
 	//   stderr 2
 	// Where each is printed on stdout and stderr as indicated.
-	p := cmd.NewCmdOptions(cmd.Options{Buffered: true, Streaming: true}, "./testdata/stream", tmpfile.Name())
+	p := cmd.NewCmd("./testdata/stream", []string{tmpfile.Name()}, cmd.Options{Buffered: true, Streaming: true})
 	p.Start()
 	time.Sleep(250 * time.Millisecond) // give test/stream a moment to print something
 
@@ -490,7 +490,7 @@ func TestCmdOnlyStreamingOutput(t *testing.T) {
 	//   stdout 2
 	//   stderr 2
 	// Where each is printed on stdout and stderr as indicated.
-	p := cmd.NewCmdOptions(cmd.Options{Buffered: false, Streaming: true}, "./testdata/stream", tmpfile.Name())
+	p := cmd.NewCmd("./testdata/stream", []string{tmpfile.Name()}, cmd.Options{Buffered: false, Streaming: true})
 	p.Start()
 	time.Sleep(250 * time.Millisecond) // give test/stream a moment to print something
 
@@ -955,7 +955,7 @@ func TestStreamingSetLineBufferSize(t *testing.T) {
 
 func TestDone(t *testing.T) {
 	// Count to 3 sleeping 1s between counts
-	p := cmd.NewCmd("./testdata/count-and-sleep", "3", "1")
+	p := cmd.NewCmd("./testdata/count-and-sleep", []string{"3", "1"}, cmd.Options{})
 	statusChan := p.Start()
 
 	// For 2s while cmd is running, Done() chan should block, which means
@@ -1004,7 +1004,7 @@ TIMER:
 func TestCmdEnvOK(t *testing.T) {
 	now := time.Now().Unix()
 
-	p := cmd.NewCmd("env")
+	p := cmd.NewCmd("env", []string{}, cmd.Options{Buffered: true})
 	p.Env = []string{"FOO=foo"}
 	gotStatus := <-p.Start()
 	expectStatus := cmd.Status{
@@ -1040,12 +1040,11 @@ func TestCmdEnvOK(t *testing.T) {
 
 func TestCmdNoOutput(t *testing.T) {
 	// Set both output options to false to discard all output
-	p := cmd.NewCmdOptions(
-		cmd.Options{
-			Buffered:  false,
-			Streaming: false,
-		},
-		"echo", "hell-world")
+	opt := cmd.Options{
+		Buffered:  false,
+		Streaming: false,
+	}
+	p := cmd.NewCmd("echo", []string{"hell-world"}, opt)
 	s := <-p.Start()
 	if s.Exit != 0 {
 		t.Errorf("got exit %d, expected 0", s.Exit)

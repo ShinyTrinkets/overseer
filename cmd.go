@@ -69,7 +69,7 @@ type StateListener func(CmdState)
 // Cmd represents an external command, similar to the Go built-in os/exec.Cmd.
 // A Cmd cannot be reused after calling Start. Exported fields are read-only and
 // should not be modified, except Env which can be set before calling Start.
-// To create a new Cmd, call NewCmd or NewCmdOptions.
+// To create a new Cmd, call NewCmd.
 type Cmd struct {
 	Name          string
 	Group         string
@@ -93,7 +93,7 @@ type Cmd struct {
 	buffered   bool          // buffer STDOUT and STDERR to Status.Stdout and Std
 }
 
-// JSONProcess structure
+// JSONProcess public structure
 type JSONProcess struct {
 	Cmd        string    `json:"cmd"`
 	PID        int       `json:"PID"`
@@ -133,7 +133,7 @@ type Status struct {
 	Stderr  []string // buffered STDERR; see Cmd.Status for more info
 }
 
-// Options represents customizations for NewCmdOptions.
+// Options represents customizations for NewCmd.
 type Options struct {
 	Group      string
 	Dir        string
@@ -154,15 +154,16 @@ type Options struct {
 }
 
 // NewCmd creates a new Cmd for the given command name and arguments. The command
-// is not started until Start is called. Output buffering is on, streaming output
-// is off. To control output, use NewCmdOptions instead.
-func NewCmd(name string, args ...string) *Cmd {
-	return &Cmd{
+// is not started until Start is called.
+func NewCmd(name string, args []string, options Options) *Cmd {
+	c := &Cmd{
 		Name:       name,
+		Group:      options.Group,
 		Args:       args,
+		Dir:        options.Dir,
+		Env:        options.Env,
 		DelayStart: defaultDelayStart,
 		RetryTimes: defaultRetryTimes,
-		buffered:   true,
 		Mutex:      &sync.Mutex{},
 		stateLock:  &sync.Mutex{},
 		status: Status{
@@ -173,21 +174,6 @@ func NewCmd(name string, args ...string) *Cmd {
 			Runtime: 0,
 		},
 		doneChan: make(chan struct{}),
-	}
-}
-
-// NewCmdOptions creates a new Cmd with options.
-// The command is not started until Start is called.
-func NewCmdOptions(options Options, name string, args ...string) *Cmd {
-	c := NewCmd(name, args...)
-	if options.Group != "" {
-		c.Group = options.Group
-	}
-	if options.Dir != "" {
-		c.Dir = options.Dir
-	}
-	if len(options.Env) > 0 {
-		c.Env = options.Env
 	}
 	if options.DelayStart > 0 {
 		c.DelayStart = options.DelayStart
@@ -206,7 +192,9 @@ func NewCmdOptions(options Options, name string, args ...string) *Cmd {
 // CloneCmd clones a Cmd. All the configs are transferred,
 // and the state of the original object is lost.
 func (c *Cmd) CloneCmd() *Cmd {
-	clone := NewCmdOptions(
+	clone := NewCmd(
+		c.Name,
+		c.Args,
 		Options{
 			Group:      c.Group,
 			Dir:        c.Dir,
@@ -216,15 +204,15 @@ func (c *Cmd) CloneCmd() *Cmd {
 			Buffered:   c.buffered,
 			Streaming:  true,
 		},
-		c.Name,
-		c.Args...,
 	)
 	return clone
 }
 
 // ToJSON returns JSON friendly detailed info about the Cmd.
 func (c *Cmd) ToJSON() JSONProcess {
-	s := c.Status()
+	c.Lock()
+	s := c.status
+	c.Unlock()
 	cmd := fmt.Sprint(c.Name, " ", c.Args)
 	startTime := time.Unix(0, s.StartTs)
 	return JSONProcess{
@@ -667,7 +655,7 @@ func (e ErrLineBufferOverflow) Error() string {
 // by the OutputStream.
 //
 // A Cmd in this package uses an OutputStream for both STDOUT and STDERR when
-// created by calling NewCmdOptions and Options.Streaming is true. To use
+// created by calling NewCmd and Options.Streaming is true. To use
 // OutputStream directly with a Go standard library os/exec.Command:
 //
 //   import "os/exec"
