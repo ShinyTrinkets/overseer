@@ -8,6 +8,7 @@
 
 [![Project name][project-img]][project-url]
 [![Build status][build-img]][build-url]
+[![Coverage report][cover-img]][cover-url]
 [![Go Report Card][goreport-img]][goreport-url]
 
 > Simple process manager library.
@@ -56,5 +57,7 @@ Icon is made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> fro
 [project-url]: https://github.com/ShinyTrinkets
 [build-img]: https://badgen.net/travis/ShinyTrinkets/overseer.go
 [build-url]: https://travis-ci.org/ShinyTrinkets/overseer.go
+[cover-img]: https://badgen.net/codecov/c/github/ShinyTrinkets/overseer.go
+[cover-url]: https://codecov.io/gh/ShinyTrinkets/overseer.go
 [goreport-img]: https://goreportcard.com/badge/github.com/ShinyTrinkets/overseer.go
 [goreport-url]: https://goreportcard.com/report/github.com/ShinyTrinkets/overseer.go
