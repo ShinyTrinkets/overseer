@@ -1,24 +1,28 @@
-// Package overseer ;
-package overseer
+package overseer_test
 
 // Currently using testify/assert here
 // and go-test/deep for cmd_test
 // Not optimal
 import (
+	"container/list"
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
-	logr "github.com/ShinyTrinkets/meta-logger"
+	ml "github.com/ShinyTrinkets/meta-logger"
+	cmd "github.com/ShinyTrinkets/overseer.go"
 	"github.com/azer/logger"
 	"github.com/stretchr/testify/assert"
 )
 
+const timeUnit = 100 * time.Millisecond
+
 func TestMain(m *testing.M) {
-	logr.SetupLogBuilder(func(name string) Logger {
+	ml.SetupLogBuilder(func(name string) cmd.Logger {
 		return logger.New(name)
 	})
 	os.Exit(m.Run())
@@ -26,7 +30,7 @@ func TestMain(m *testing.M) {
 
 func TestSimpleOverseer(t *testing.T) {
 	assert := assert.New(t)
-	ovr := NewOverseer()
+	ovr := cmd.NewOverseer()
 
 	id := "echo"
 	ovr.Add(id, "echo", "").Start()
@@ -55,7 +59,7 @@ func TestSimpleOverseer(t *testing.T) {
 
 func TestAddRemove(t *testing.T) {
 	assert := assert.New(t)
-	ovr := NewOverseer()
+	ovr := cmd.NewOverseer()
 
 	rng := make([]int, 10)
 	for nr := range rng {
@@ -78,7 +82,7 @@ func TestAddRemove(t *testing.T) {
 
 func TestSimpleSupervise(t *testing.T) {
 	assert := assert.New(t)
-	ovr := NewOverseer()
+	ovr := cmd.NewOverseer()
 
 	ovr.Add("echo", "echo", "")
 	id := "sleep"
@@ -100,29 +104,39 @@ func TestSimpleSupervise(t *testing.T) {
 
 func TestSuperviseAll(t *testing.T) {
 	assert := assert.New(t)
-	ovr := NewOverseer()
+	ovr := cmd.NewOverseer()
 
 	id := "echo"
 	ovr.Add(id, "echo", "x")
 
 	stat := ovr.Status(id)
 	assert.Equal(stat.Exit, -1, "Exit code should be -1")
-	assert.Equal(stat.PID, 0, "PID should be 0")
+	assert.Equal(stat.PID, 0)
 
 	id = "list"
 	ovr.Add(id, "ls", "/usr/")
 
-	stat = ovr.Status(id)
-	assert.Equal(stat.Exit, -1, "Exit code should be 0")
-	assert.Equal(stat.PID, 0, "PID should be 0")
-
-	ovr.SuperviseAll()
-
+	// before supervise
 	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs")
 
 	stat = ovr.Status(id)
-	assert.Equal(stat.Exit, 0, "Exit code should be 0")
-	assert.NotEqual(stat.PID, 0, "PID should't be 0")
+	assert.Equal(-1, stat.Exit)
+	assert.Equal(0, stat.PID)
+
+	// block and wait for procs to finish
+	go ovr.SuperviseAll()
+	// next calls shouldn't do anything
+	ovr.SuperviseAll()
+	ovr.SuperviseAll()
+
+	time.Sleep(timeUnit * 4)
+
+	// after supervise
+	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs")
+
+	stat = ovr.Status(id)
+	assert.Equal(0, stat.Exit)
+	assert.NotEqual(0, stat.PID)
 
 	json := ovr.ToJSON(id)
 	assert.Equal("finished", json.State)
@@ -130,7 +144,7 @@ func TestSuperviseAll(t *testing.T) {
 
 func TestSleepOverseer(t *testing.T) {
 	assert := assert.New(t)
-	ovr := NewOverseer()
+	ovr := cmd.NewOverseer()
 
 	id := "sleep"
 	c := ovr.Add(id, "sleep", "10")
@@ -142,7 +156,7 @@ func TestSleepOverseer(t *testing.T) {
 	// JSON status should contain the same info
 	assert.Equal("running", json.State)
 	assert.Equal(-1, json.ExitCode)
-	assert.True(json.PID > 0)
+	assert.NotEqual(0, json.PID)
 	assert.Nil(json.Error)
 
 	// success kill
@@ -158,9 +172,9 @@ func TestSleepOverseer(t *testing.T) {
 
 func TestInvalidProcs(t *testing.T) {
 	assert := assert.New(t)
-	ovr := NewOverseer()
+	ovr := cmd.NewOverseer()
 
-	ch := make(chan *ProcessJSON)
+	ch := make(chan *cmd.ProcessJSON)
 	ovr.Watch(ch)
 	// ovr.UnWatch(ch)
 
@@ -200,4 +214,71 @@ func TestInvalidProcs(t *testing.T) {
 	assert.True(stat.Exit > 0, "Exit code should be positive")
 	assert.Nil(stat.Error, "Error should be nil")
 	assert.Equal("finished", json.State)
+}
+
+func TestWatchUnwatch(t *testing.T) {
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	lock := &sync.Mutex{}
+	results := list.New()
+	pushResult := func(result string) {
+		lock.Lock()
+		results.PushBack(result)
+		lock.Unlock()
+	}
+
+	ch1 := make(chan *cmd.ProcessJSON)
+	ovr.Watch(ch1)
+	ovr.UnWatch(ch1)
+
+	// CH2 will receive events
+	ch2 := make(chan *cmd.ProcessJSON)
+	ovr.Watch(ch2)
+
+	ch3 := make(chan *cmd.ProcessJSON)
+	ovr.Watch(ch3)
+	ovr.UnWatch(ch3)
+
+	// CH4 will also receive events
+	ch4 := make(chan *cmd.ProcessJSON)
+	ovr.Watch(ch4)
+
+	go func() {
+		for {
+			select {
+			case state := <-ch1:
+				fmt.Printf("> STATE CHANGED 1 %v\n", state)
+				pushResult(state.State)
+			case state := <-ch2:
+				fmt.Printf("> STATE CHANGED 2 %v\n", state)
+				pushResult(state.State)
+			case state := <-ch3:
+				fmt.Printf("> STATE CHANGED 3 %v\n", state)
+				pushResult(state.State)
+			case state := <-ch4:
+				fmt.Printf("> STATE CHANGED 4 %v\n", state)
+				pushResult(state.State)
+			}
+		}
+	}()
+
+	id := "ls"
+	ovr.Add(id, "ls", "-la")
+	ovr.SuperviseAll()
+
+	json := ovr.ToJSON(id)
+	assert.Equal("finished", json.State)
+
+	lock.Lock()
+	assert.Equal(6, results.Len())
+	// starting, running, finished x 2
+	assert.Equal("starting", results.Front().Value)
+	assert.Equal("finished", results.Back().Value)
+	lock.Unlock()
+
+	// // Iterate through statuses and print its contents
+	// for e := results.Front(); e != nil; e = e.Next() {
+	// 	fmt.Println(e.Value)
+	// }
 }

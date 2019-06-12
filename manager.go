@@ -34,6 +34,7 @@ type Overseer struct {
 	lock     sync.RWMutex
 	procs    map[string]*Cmd
 	watchers []chan *ProcessJSON
+	running  bool
 	stopping bool
 }
 
@@ -230,7 +231,14 @@ func (ovr *Overseer) UnWatch(outputChan chan *ProcessJSON) {
 // SuperviseAll is the *main* function.
 // Supervise all registered processes and wait for them to finish.
 func (ovr *Overseer) SuperviseAll() {
+	if ovr.isRunning() {
+		log.Error("Supervise all is already running")
+		return
+	}
+
+	ovr.setRunning(true)
 	log.Info("Start supervise all")
+
 	for id := range ovr.procs {
 		go ovr.Supervise(id)
 	}
@@ -239,7 +247,7 @@ func (ovr *Overseer) SuperviseAll() {
 	// for each Supervise() the counter goes up, and at the end it goes down
 	ticker := time.NewTicker(4 * timeUnit)
 	for range ticker.C {
-		if ovr.stopping {
+		if ovr.isStopping() {
 			log.Info("Stop supervise all")
 			break
 		}
@@ -254,6 +262,7 @@ func (ovr *Overseer) SuperviseAll() {
 		}
 
 		if allDone {
+			ovr.setRunning(false)
 			log.Info("All procs finished")
 			break
 		}
@@ -403,9 +412,7 @@ func (ovr *Overseer) Supervise(id string) {
 
 // StopAll cycles and kills all child procs. Used when exiting the program.
 func (ovr *Overseer) StopAll() {
-	ovr.lock.Lock()
-	ovr.stopping = true
-	ovr.lock.Unlock()
+	ovr.setStopping(true)
 
 	for id, c := range ovr.procs {
 		c.Lock()
@@ -413,4 +420,28 @@ func (ovr *Overseer) StopAll() {
 		c.Unlock()
 		ovr.Stop(id)
 	}
+}
+
+func (ovr *Overseer) isRunning() bool {
+	ovr.lock.Lock()
+	defer ovr.lock.Unlock()
+	return ovr.running
+}
+
+func (ovr *Overseer) setRunning(val bool) {
+	ovr.lock.Lock()
+	defer ovr.lock.Unlock()
+	ovr.running = val
+}
+
+func (ovr *Overseer) isStopping() bool {
+	ovr.lock.Lock()
+	defer ovr.lock.Unlock()
+	return ovr.stopping
+}
+
+func (ovr *Overseer) setStopping(val bool) {
+	ovr.lock.Lock()
+	defer ovr.lock.Unlock()
+	ovr.stopping = val
 }

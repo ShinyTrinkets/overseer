@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestBoffBoff1(t *testing.T) {
+func TestBoff1(t *testing.T) {
 
 	b := &Backoff{
 		Min:    100 * time.Millisecond,
