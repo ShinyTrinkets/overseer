@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func Test1(t *testing.T) {
+func TestBoffBoff1(t *testing.T) {
 
 	b := &Backoff{
 		Min:    100 * time.Millisecond,
@@ -21,7 +21,7 @@ func Test1(t *testing.T) {
 	equals(t, b.Duration(), 100*time.Millisecond)
 }
 
-func Test2(t *testing.T) {
+func TestBoff2(t *testing.T) {
 
 	b := &Backoff{
 		Min:    100 * time.Millisecond,
@@ -36,7 +36,7 @@ func Test2(t *testing.T) {
 	equals(t, b.Duration(), 100*time.Millisecond)
 }
 
-func Test3(t *testing.T) {
+func TestBoff3(t *testing.T) {
 
 	b := &Backoff{
 		Min:    100 * time.Nanosecond,
@@ -51,7 +51,7 @@ func Test3(t *testing.T) {
 	equals(t, b.Duration(), 100*time.Nanosecond)
 }
 
-func Test4(t *testing.T) {
+func TestBoff4(t *testing.T) {
 	b := &Backoff{
 		Min:    500 * time.Second,
 		Max:    100 * time.Second,
@@ -61,7 +61,7 @@ func Test4(t *testing.T) {
 	equals(t, b.Duration(), b.Max)
 }
 
-func TestForAttempt(t *testing.T) {
+func TestBoffForAttempt(t *testing.T) {
 	b := &Backoff{
 		Min:    100 * time.Millisecond,
 		Max:    10 * time.Second,
@@ -75,7 +75,7 @@ func TestForAttempt(t *testing.T) {
 	equals(t, b.ForAttempt(0), 100*time.Millisecond)
 }
 
-func TestForAttemptDefaults(t *testing.T) {
+func TestBoffForAttemptDefaults(t *testing.T) {
 	b := &Backoff{}
 
 	equals(t, b.ForAttempt(0), 100*time.Millisecond)
@@ -85,7 +85,7 @@ func TestForAttemptDefaults(t *testing.T) {
 	equals(t, b.ForAttempt(0), 100*time.Millisecond)
 }
 
-func TestGetAttempt(t *testing.T) {
+func TestBoffGetAttempt(t *testing.T) {
 	b := &Backoff{
 		Min:    100 * time.Millisecond,
 		Max:    10 * time.Second,
@@ -104,7 +104,7 @@ func TestGetAttempt(t *testing.T) {
 	equals(t, b.Attempt(), float64(1))
 }
 
-func TestJitter(t *testing.T) {
+func TestBoffJitter(t *testing.T) {
 	b := &Backoff{
 		Min:    100 * time.Millisecond,
 		Max:    10 * time.Second,
