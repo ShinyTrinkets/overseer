@@ -68,12 +68,13 @@ func cmdRunAll(cmd *cli.Cmd) {
 				fmt.Printf("Proc '%s': Cannot split args. Error: %v\n", id, err)
 				continue
 			}
+
 			p := ovr.Add(id, args...)
 			p.SetEnv(append(os.Environ(), proc.Env...))
-			if proc.Cwd != "" {
-				p.SetDir(proc.Cwd)
-			}
 			p.Lock()
+			if proc.Cwd != "" {
+				p.Dir = proc.Cwd
+			}
 			if proc.Delay > 0 {
 				p.DelayStart = proc.Delay
 			}

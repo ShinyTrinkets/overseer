@@ -31,9 +31,25 @@ var log Logger
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
+	lock     sync.RWMutex
 	procs    map[string]*Cmd
-	lock     sync.Mutex
+	watchers []chan *ProcessJSON
 	stopping bool
+}
+
+// ProcessJSON public structure
+type ProcessJSON struct {
+	ID         string    `json:"id"`
+	Group      string    `json:"group"`
+	Cmd        string    `json:"cmd"`
+	PID        int       `json:"PID"`
+	State      string    `json:"state"`
+	ExitCode   int       `json:"exitCode"` // exit code of process
+	Error      error     `json:"error"`    // Go error
+	StartTime  time.Time `json:"startTime"`
+	Dir        string    `json:"dir"`
+	DelayStart uint      `json:"delayStart"`
+	RetryTimes uint      `json:"retryTimes"`
 }
 
 // NewOverseer creates a new process manager.
@@ -64,11 +80,21 @@ func NewOverseer() *Overseer {
 // ListAll returns the names of all the procs in alphabetic order.
 func (ovr *Overseer) ListAll() []string {
 	ids := []string{}
-	ovr.lock.Lock()
 	for id := range ovr.procs {
 		ids = append(ids, id)
 	}
-	ovr.lock.Unlock()
+	sort.Strings(ids)
+	return ids
+}
+
+// ListGroup returns the names of all the procs from a specific group.
+func (ovr *Overseer) ListGroup(group string) []string {
+	ids := []string{}
+	for id, c := range ovr.procs {
+		if c.Group == group {
+			ids = append(ids, id)
+		}
+	}
 	sort.Strings(ids)
 	return ids
 }
@@ -79,7 +105,38 @@ func (ovr *Overseer) HasProc(id string) bool {
 	return exists
 }
 
+// Status returns a child process status
+// (PID, Exit code, Error, Runtime seconds, Stdout, Stderr)
+func (ovr *Overseer) Status(id string) Status {
+	c := ovr.procs[id]
+	return c.Status()
+}
+
+// ToJSON returns a more detailed process status, ready to be converted to JSON.
+// Use this after calling ListAll() or ListGroup()
+func (ovr *Overseer) ToJSON(id string) *ProcessJSON {
+	c := ovr.procs[id]
+	s := c.Status()
+
+	cmdArgs := fmt.Sprint(c.Name, " ", c.Args)
+	startTime := time.Unix(0, s.StartTs)
+	return &ProcessJSON{
+		id,
+		c.Group,
+		cmdArgs,
+		s.PID,
+		c.State.String(),
+		s.Exit,
+		s.Error,
+		startTime,
+		c.Dir,
+		c.DelayStart,
+		c.RetryTimes,
+	}
+}
+
 // Add (register) a process, without starting it.
+// TODO :: Options as a optional param
 func (ovr *Overseer) Add(id string, args ...string) *Cmd {
 	_, exists := ovr.procs[id]
 	if exists {
@@ -122,29 +179,10 @@ func (ovr *Overseer) Remove(id string) bool {
 	return false
 }
 
-// Status returns a child process status
-// (PID, Exit code, Error, Runtime seconds, Stdout, Stderr)
-func (ovr *Overseer) Status(id string) Status {
-	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
-	c := ovr.procs[id]
-	return c.Status()
-}
-
-// ToJSON returns a more detailed process status, ready to be converted to JSON.
-func (ovr *Overseer) ToJSON(id string) JSONProcess {
-	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
-	c := ovr.procs[id]
-	return c.ToJSON()
-}
-
 // Stop the process by sending its process group a SIGTERM signal.
 // The process can be started again, if needed.
 func (ovr *Overseer) Stop(id string) error {
-	ovr.lock.Lock()
 	c := ovr.procs[id]
-	ovr.lock.Unlock()
 
 	if err := c.Stop(); err != nil {
 		log.Error("Cannot stop process:", Attrs{"id": id})
@@ -157,9 +195,7 @@ func (ovr *Overseer) Stop(id string) error {
 
 // Signal sends OS signal to the process group.
 func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
-	ovr.lock.Lock()
 	c := ovr.procs[id]
-	ovr.lock.Unlock()
 
 	if err := c.Signal(sig); err != nil {
 		log.Error("Cannot signal process:", Attrs{"id": id, "sig": sig})
@@ -170,6 +206,27 @@ func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
 	return nil
 }
 
+// Watch allows subscribing to state changes via provided output channel.
+func (ovr *Overseer) Watch(outputChan chan *ProcessJSON) {
+	ovr.lock.Lock()
+	ovr.watchers = append(ovr.watchers, outputChan)
+	ovr.lock.Unlock()
+}
+
+// UnWatch allows un-subscribing from state changes.
+func (ovr *Overseer) UnWatch(outputChan chan *ProcessJSON) {
+	index := -1
+	for i, outCh := range ovr.watchers {
+		if outCh == outputChan {
+			index = i
+			break
+		}
+	}
+	ovr.lock.Lock()
+	ovr.watchers = append(ovr.watchers[:index], ovr.watchers[index+1:]...)
+	ovr.lock.Unlock()
+}
+
 // SuperviseAll is the *main* function.
 // Supervise all registered processes and wait for them to finish.
 func (ovr *Overseer) SuperviseAll() {
@@ -178,6 +235,8 @@ func (ovr *Overseer) SuperviseAll() {
 		go ovr.Supervise(id)
 	}
 	// Check all procs every tick
+	// NOTE: This should probably be implemented with a WaitGroup,
+	// for each Supervise() the counter goes up, and at the end it goes down
 	ticker := time.NewTicker(4 * timeUnit)
 	for range ticker.C {
 		if ovr.stopping {
@@ -216,13 +275,13 @@ func (ovr *Overseer) Supervise(id string) {
 	// will also go into this log
 	var log = logr.NewLogger("proc")
 
-	log.Info("Start overseeing process:", Attrs{"id": id})
+	log.Info("Start overseeing process:", Attrs{"id": id, "cmd": cmdArg})
 
 	jMax := delayStart
 	if delayStart < 10 {
 		jMax = 10
 	}
-	b := &Backoff{
+	bOff := &Backoff{
 		Min:    1,
 		Max:    time.Duration(jMax),
 		Factor: 3,
@@ -245,55 +304,55 @@ func (ovr *Overseer) Supervise(id string) {
 			"retryTimes": retryTimes,
 		})
 
+		// Subscribe to state changes
+		go func(c *Cmd) {
+			for i := range c.changeChan {
+				s := c.Status()
+				startTime := time.Unix(0, s.StartTs)
+				info := &ProcessJSON{
+					id,
+					c.Group,
+					cmdArg,
+					s.PID,
+					i.String(),
+					s.Exit,
+					s.Error,
+					startTime,
+					c.Dir,
+					c.DelayStart,
+					c.RetryTimes,
+				}
+				// Push the status change
+				for _, outputChan := range ovr.watchers {
+					outputChan <- info
+				}
+				if ovr.stopping || c.IsFinalState() {
+					break
+				}
+			}
+			// log.Info("Close STATE loop:", Attrs{"id": id})
+		}(c)
+
 		// Async start
 		c.Start()
 
 		// Process each line of STDOUT
-		go func() {
-			for line := range c.Stdout {
-				log.Info(line)
-				if ovr.stopping {
-					break
-				}
-				stat := c.Status()
-				if c.IsFinalState() || stat.Exit > -1 {
-					break
-				}
-			}
-		}()
-
-		// Process each line of STDERR
-		go func() {
-			for line := range c.Stderr {
-				log.Error(line)
-				if ovr.stopping {
-					break
-				}
-				stat := c.Status()
-				if c.IsFinalState() || stat.Exit > -1 {
-					break
+		go func(c *Cmd) {
+			for {
+				select {
+				case line := <-c.Stdout:
+					log.Info(line)
+				case line := <-c.Stderr:
+					log.Error(line)
+				default:
+					if ovr.stopping || c.IsFinalState() {
+						// log.Info("Close STDOUT and STDERR loop:", Attrs{"id": id})
+						return
+					}
+					time.Sleep(2 * timeUnit)
 				}
 			}
-		}()
-
-		// Check PID from time to time, if it hasn't been killed
-		// by an external signal, or from an internal error
-		go func() {
-			time.Sleep(2 * timeUnit)
-			pid := c.Status().PID
-			ticker := time.NewTicker(4 * timeUnit)
-			for range ticker.C {
-				if c.IsFinalState() {
-					log.Info("Process in final state:", Attrs{"id": id})
-					break
-				}
-				err := syscall.Kill(pid, syscall.Signal(0))
-				if err != nil {
-					log.Info("Process has died:", Attrs{"id": id})
-					break
-				}
-			}
-		}()
+		}(c)
 
 		// Block and wait for process to finish
 		stat := <-c.Start()
@@ -310,14 +369,16 @@ func (ovr *Overseer) Supervise(id string) {
 
 		// Decrement the number of retries and increase the start time
 		retryTimes--
-		delayStart += uint(b.Duration())
+		delayStart += uint(bOff.Duration())
 
 		if retryTimes < 1 {
-			log.Error("Process exited abnormally. Stopped. Err: %s", stat.Error, Attrs{"id": id})
+			log.Error("Process exited abnormally. Stopped. Err: %s",
+				stat.Error, Attrs{"id": id, "cmd": cmdArg})
 			c.Stop() // just to make sure the status is updated
 			break
 		} else {
-			log.Error("Process exited abnormally. Err: %s. Restarting [%d]. ", stat.Error, retryTimes+1, Attrs{"id": id})
+			log.Error("Process exited abnormally. Err: %s. Restarting [%d]. ",
+				stat.Error, retryTimes+1, Attrs{"id": id, "cmd": cmdArg})
 		}
 
 		ovr.lock.Lock()
@@ -326,10 +387,15 @@ func (ovr *Overseer) Supervise(id string) {
 		c = c.CloneCmd()
 		ovr.procs[id] = c
 		ovr.lock.Unlock()
+
+		c.Lock()
+		c.DelayStart = delayStart
+		c.RetryTimes = retryTimes
+		c.Unlock()
 	}
 
-	b.Reset() // clean backoff
-	c.Stop()  // just to make sure the status is updated
+	c.Stop()     // just to make sure the status is updated
+	bOff.Reset() // clean backoff
 	log.Info("Stop overseeing process:", Attrs{"id": id, "cmd": cmdArg})
 }
 

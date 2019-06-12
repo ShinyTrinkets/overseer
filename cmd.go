@@ -63,48 +63,31 @@ const (
 	defaultRetryTimes uint = 3
 )
 
-// StateListener is a simple func which receives the CmDstate on each change
-type StateListener func(CmdState)
-
 // Cmd represents an external command, similar to the Go built-in os/exec.Cmd.
 // A Cmd cannot be reused after calling Start. Exported fields are read-only and
 // should not be modified, except Env which can be set before calling Start.
 // To create a new Cmd, call NewCmd.
 type Cmd struct {
-	Name          string
-	Group         string
-	Args          []string
-	Env           []string
-	Dir           string
-	DelayStart    uint          // Nr of milli-seconds to delay the start (used by the manager)
-	RetryTimes    uint          // Nr of times to restart on failure (used by the manager)
-	Stdout        chan string   // streaming STDOUT if enabled, else nil (see Options)
-	Stderr        chan string   // streaming STDERR if enabled, else nil (see Options)
-	State         CmdState      // The state of the cmd (stopped, started, etc)
-	stateListener StateListener // called when the Cmd changes its state
-	stateLock     *sync.Mutex
 	*sync.Mutex
+	stateLock  *sync.Mutex
+	Name       string
+	Group      string
+	Args       []string
+	Env        []string
+	Dir        string
+	DelayStart uint        // Nr of milli-seconds to delay the start (used by the manager)
+	RetryTimes uint        // Nr of times to restart on failure (used by the manager)
+	Stdout     chan string // streaming STDOUT if enabled, else nil (see Options)
+	Stderr     chan string // streaming STDERR if enabled, else nil (see Options)
+	State      CmdState    // The state of the cmd (stopped, started, etc)
 	startTime  time.Time
 	stdout     *OutputBuffer // low-level stdout buffering and streaming
 	stderr     *OutputBuffer // low-level stderr buffering and streaming
 	status     Status
 	statusChan chan Status   // nil until Start() called
+	changeChan chan CmdState // state changes feed
 	doneChan   chan struct{} // closed when done running
 	buffered   bool          // buffer STDOUT and STDERR to Status.Stdout and Std
-}
-
-// JSONProcess public structure
-type JSONProcess struct {
-	Cmd        string    `json:"cmd"`
-	PID        int       `json:"PID"`
-	State      string    `json:"state"`
-	ExitCode   int       `json:"exitCode"` // exit code of process
-	Error      error     `json:"error"`    // Go error
-	RunTime    float64   `json:"runTime"`  // seconds, zero if Cmd not started
-	StartTime  time.Time `json:"startTime"`
-	Dir        string    `json:"dir"`
-	DelayStart uint      `json:"delayStart"`
-	RetryTimes uint      `json:"retryTimes"`
 }
 
 // Status represents the running status and consolidated return of a Cmd. It can
@@ -155,6 +138,7 @@ type Options struct {
 
 // NewCmd creates a new Cmd for the given command name and arguments. The command
 // is not started until Start is called.
+// TODO :: Options should be a optional param
 func NewCmd(name string, args []string, options Options) *Cmd {
 	c := &Cmd{
 		Name:       name,
@@ -173,7 +157,8 @@ func NewCmd(name string, args []string, options Options) *Cmd {
 			Error:   nil,
 			Runtime: 0,
 		},
-		doneChan: make(chan struct{}),
+		changeChan: make(chan CmdState, 5),
+		doneChan:   make(chan struct{}),
 	}
 	if options.DelayStart > 0 {
 		c.DelayStart = options.DelayStart
@@ -202,39 +187,10 @@ func (c *Cmd) CloneCmd() *Cmd {
 			DelayStart: c.DelayStart,
 			RetryTimes: c.RetryTimes,
 			Buffered:   c.buffered,
-			Streaming:  true,
+			Streaming:  c.Stdout != nil,
 		},
 	)
 	return clone
-}
-
-// ToJSON returns JSON friendly detailed info about the Cmd.
-func (c *Cmd) ToJSON() JSONProcess {
-	c.Lock()
-	s := c.status
-	c.Unlock()
-	cmd := fmt.Sprint(c.Name, " ", c.Args)
-	startTime := time.Unix(0, s.StartTs)
-	return JSONProcess{
-		cmd,
-		s.PID,
-		c.State.String(),
-		s.Exit,
-		s.Error,
-		s.Runtime,
-		startTime,
-		c.Dir,
-		c.DelayStart,
-		c.RetryTimes,
-	}
-}
-
-// SetDir sets the environment variables for the launched command.
-// This can only have effect before starting the command.
-func (c *Cmd) SetDir(dir string) {
-	c.Lock()
-	defer c.Unlock()
-	c.Dir = dir
 }
 
 // SetEnv sets the working directory of the command.
@@ -245,13 +201,6 @@ func (c *Cmd) SetEnv(env []string) {
 	c.Lock()
 	defer c.Unlock()
 	c.Env = env
-}
-
-// SetStateListener adds a callback when the Cmd changes its state.
-func (c *Cmd) SetStateListener(cb StateListener) {
-	c.Lock()
-	defer c.Unlock()
-	c.stateListener = cb
 }
 
 // setState sets the new internal state and might be used to trigger events.
@@ -271,10 +220,8 @@ func (c *Cmd) setState(state CmdState) {
 		c.State = state
 		c.stateLock.Unlock()
 	}
-	// Trigger the callback on state change
-	if c.stateListener != nil {
-		defer c.stateListener(state)
-	}
+	// Push the update
+	c.changeChan <- state
 }
 
 // IsInitialState returns true if the Cmd is in the initial state.
@@ -426,6 +373,7 @@ func (c *Cmd) run() {
 	defer func() {
 		c.statusChan <- c.Status() // unblocks Start if caller is waiting
 		close(c.doneChan)
+		close(c.changeChan)
 	}()
 
 	c.Lock()
@@ -524,9 +472,13 @@ func (c *Cmd) run() {
 				exitCode = waitStatus.ExitStatus() // -1 if signaled
 				if waitStatus.Signaled() {
 					c.Lock()
+					err = errors.New(exiterr.Error()) // "signal: terminated"
+					c.status.Runtime = now.Sub(c.startTime).Seconds()
+					c.status.StopTs = now.UnixNano()
+					c.status.Exit = exitCode
+					c.status.Error = err
 					c.setState(INTERRUPT)
 					c.Unlock()
-					err = errors.New(exiterr.Error()) // "signal: terminated"
 				}
 			}
 		default:
