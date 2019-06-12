@@ -33,22 +33,23 @@ func TestSimpleOverseer(t *testing.T) {
 	ovr := cmd.NewOverseer()
 
 	id := "echo"
-	ovr.Add(id, "echo", "").Start()
+	ovr.Add(id, "echo").Start()
 	assert.True(ovr.HasProc(id))
 	time.Sleep(timeUnit)
 
 	stat := ovr.Status(id)
-	assert.Equal(stat.Exit, 0, "Exit code should be 0")
-	assert.NotEqual(stat.PID, 0, "PID shouldn't be 0")
+	assert.Equal(0, stat.Exit)
+	assert.True(stat.PID > 0)
 
 	id = "list"
-	ovr.Add(id, "ls", "/usr/").Start()
+	opts := cmd.Options{Buffered: false, Streaming: false, DelayStart: 1, RetryTimes: 1}
+	ovr.Add(id, "ls", []string{"/usr/"}, opts).Start()
 	assert.True(ovr.HasProc(id))
 	time.Sleep(timeUnit)
 
 	stat = ovr.Status(id)
-	assert.Equal(stat.Exit, 0, "Exit code should be 0")
-	assert.NotEqual(stat.PID, 0, "PID shouldn't be 0")
+	assert.Equal(0, stat.Exit)
+	assert.True(stat.PID > 0)
 
 	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs: echo, list")
 	assert.Equal(2, len(ovr.ListGroup("")), "Expected 2 procs: echo, list")
@@ -69,8 +70,8 @@ func TestAddRemove(t *testing.T) {
 		id := fmt.Sprintf("id%s", nr)
 		assert.False(ovr.Remove(id))
 
-		assert.NotNil(ovr.Add(id, "sleep", nr))
-		assert.Nil(ovr.Add(id, "sleep", "999"))
+		assert.NotNil(ovr.Add(id, "sleep", []string{nr}))
+		assert.Nil(ovr.Add(id, "sleep", []string{"999"}))
 
 		assert.True(ovr.HasProc(id))
 		assert.Equal(1, len(ovr.ListAll()))
@@ -84,11 +85,11 @@ func TestSimpleSupervise(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
-	ovr.Add("echo", "echo", "")
+	opts := cmd.Options{Buffered: false, Streaming: false}
+	ovr.Add("echo", "echo", opts)
 	id := "sleep"
-	assert.NotNil(ovr.Add(id, "sleep", "1"))
-	assert.Nil(ovr.Add(id, "sleep", "9"))
-	assert.True(ovr.HasProc(id))
+	assert.NotNil(ovr.Add(id, "sleep", []string{"1"}))
+	assert.Nil(ovr.Add(id, "sleep", []string{"9"}))
 
 	ovr.Supervise(id) // To supervise sleep. How cool is that?
 
@@ -107,14 +108,14 @@ func TestSuperviseAll(t *testing.T) {
 	ovr := cmd.NewOverseer()
 
 	id := "echo"
-	ovr.Add(id, "echo", "x")
+	ovr.Add(id, "echo", []string{"x"})
 
 	stat := ovr.Status(id)
 	assert.Equal(stat.Exit, -1, "Exit code should be -1")
 	assert.Equal(stat.PID, 0)
 
 	id = "list"
-	ovr.Add(id, "ls", "/usr/")
+	ovr.Add(id, "ls", []string{"/usr/"})
 
 	// before supervise
 	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs")
@@ -147,8 +148,8 @@ func TestSleepOverseer(t *testing.T) {
 	ovr := cmd.NewOverseer()
 
 	id := "sleep"
-	c := ovr.Add(id, "sleep", "10")
-	c.RetryTimes = 0
+	opts := cmd.Options{Buffered: false, Streaming: false, DelayStart: 1}
+	ovr.Add(id, "sleep", []string{"10"}, opts)
 	go ovr.Supervise(id)
 	time.Sleep(timeUnit * 4)
 
@@ -185,7 +186,7 @@ func TestInvalidProcs(t *testing.T) {
 	}()
 
 	id := "err1"
-	ovr.Add(id, "qwertyuiop", "zxcvbnm")
+	ovr.Add(id, "qwertyuiop", []string{"zxcvbnm"})
 	ovr.Supervise(id)
 
 	stat := ovr.Status(id)
@@ -203,7 +204,7 @@ func TestInvalidProcs(t *testing.T) {
 	assert.Nil(ovr.Stop(id))
 
 	id = "err2"
-	ovr.Add(id, "ls", "/some_random_not_existent_path")
+	ovr.Add(id, "ls", []string{"/some_random_not_existent_path"})
 	ovr.Supervise(id)
 
 	stat = ovr.Status(id)
@@ -264,7 +265,7 @@ func TestWatchUnwatch(t *testing.T) {
 	}()
 
 	id := "ls"
-	ovr.Add(id, "ls", "-la")
+	ovr.Add(id, "ls", []string{"-la"})
 	ovr.SuperviseAll()
 
 	json := ovr.ToJSON(id)

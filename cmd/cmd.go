@@ -69,19 +69,21 @@ func cmdRunAll(cmd *cli.Cmd) {
 				continue
 			}
 
-			p := ovr.Add(id, args...)
-			p.SetEnv(append(os.Environ(), proc.Env...))
-			p.Lock()
+			opts := overseer.Options{Buffered: false, Streaming: true, DelayStart: 1, RetryTimes: 1}
 			if proc.Cwd != "" {
-				p.Dir = proc.Cwd
+				opts.Dir = proc.Cwd
 			}
 			if proc.Delay > 0 {
-				p.DelayStart = proc.Delay
+				opts.DelayStart = proc.Delay
 			}
 			if proc.Retry > 0 {
-				p.RetryTimes = proc.Retry
+				opts.RetryTimes = proc.Retry
 			}
-			p.Unlock()
+			p := ovr.Add(id, args[0], args[1:], opts)
+			if p == nil {
+				continue
+			}
+			p.SetEnv(append(os.Environ(), proc.Env...))
 		}
 
 		ovr.SuperviseAll()

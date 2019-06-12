@@ -116,7 +116,9 @@ func (ovr *Overseer) Status(id string) Status {
 // ToJSON returns a more detailed process status, ready to be converted to JSON.
 // Use this after calling ListAll() or ListGroup()
 func (ovr *Overseer) ToJSON(id string) *ProcessJSON {
+	ovr.lock.Lock()
 	c := ovr.procs[id]
+	ovr.lock.Unlock()
 	s := c.Status()
 
 	cmdArgs := fmt.Sprint(c.Name, " ", c.Args)
@@ -137,23 +139,39 @@ func (ovr *Overseer) ToJSON(id string) *ProcessJSON {
 }
 
 // Add (register) a process, without starting it.
-// TODO :: Options as a optional param
-func (ovr *Overseer) Add(id string, args ...string) *Cmd {
-	_, exists := ovr.procs[id]
-	if exists {
-		log.Info("Cannot add process, because it exists already:", Attrs{"id": id})
+func (ovr *Overseer) Add(id string, args ...interface{}) *Cmd {
+	var exec string
+	var para []string
+	opts := Options{Buffered: false, Streaming: true}
+
+	for _, arg := range args {
+		switch arg.(type) {
+		case string:
+			exec = arg.(string)
+		case []string:
+			for _, v := range arg.([]string) {
+				para = append(para, fmt.Sprint(v))
+			}
+		case Options:
+			opts = arg.(Options)
+		default:
+			log.Error("Unknown arg type: %T!", arg, Attrs{"id": id})
+			return nil
+		}
+	}
+
+	if exec == "" {
+		log.Error("Cannot add process, no Executable defined!", Attrs{"id": id})
 		return nil
 	}
-	c := NewCmd(
-		args[0],
-		args[1:],
-		Options{Buffered: false, Streaming: true},
-	)
-	log.Info("Add process:", Attrs{
-		"id":   id,
-		"name": c.Name,
-		"args": c.Args,
-	})
+	_, exists := ovr.procs[id]
+	if exists {
+		log.Error("Cannot add process, it exists already!", Attrs{"id": id})
+		return nil
+	}
+	c := NewCmd(exec, para, opts)
+	log.Info("Add process:", Attrs{"id": id, "name": exec, "args": para})
+
 	ovr.lock.Lock()
 	ovr.procs[id] = c
 	ovr.lock.Unlock()
@@ -203,7 +221,7 @@ func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
 		return err
 	}
 
-	log.Info("Signel process:", Attrs{"id": id, "sig": sig})
+	log.Info("Signal process:", Attrs{"id": id, "sig": sig})
 	return nil
 }
 

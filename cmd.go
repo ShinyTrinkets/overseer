@@ -58,10 +58,7 @@ import (
 	"time"
 )
 
-const (
-	defaultDelayStart uint = 25
-	defaultRetryTimes uint = 3
-)
+const defaultDelayStart uint = 25
 
 // Cmd represents an external command, similar to the Go built-in os/exec.Cmd.
 // A Cmd cannot be reused after calling Start. Exported fields are read-only and
@@ -147,7 +144,7 @@ func NewCmd(name string, args []string, options Options) *Cmd {
 		Dir:        options.Dir,
 		Env:        options.Env,
 		DelayStart: defaultDelayStart,
-		RetryTimes: defaultRetryTimes,
+		RetryTimes: options.RetryTimes,
 		Mutex:      &sync.Mutex{},
 		stateLock:  &sync.Mutex{},
 		status: Status{
@@ -162,9 +159,6 @@ func NewCmd(name string, args []string, options Options) *Cmd {
 	}
 	if options.DelayStart > 0 {
 		c.DelayStart = options.DelayStart
-	}
-	if options.RetryTimes > 0 {
-		c.RetryTimes = options.RetryTimes
 	}
 	c.buffered = options.Buffered
 	if options.Streaming {
