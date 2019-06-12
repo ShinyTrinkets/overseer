@@ -29,6 +29,7 @@ func TestSimpleOverseer(t *testing.T) {
 
 	id := "echo"
 	ovr.Add(id, "echo", "").Start()
+	assert.True(ovr.HasProc(id))
 	time.Sleep(timeUnit)
 
 	stat := ovr.Status(id)
@@ -37,6 +38,7 @@ func TestSimpleOverseer(t *testing.T) {
 
 	id = "list"
 	ovr.Add(id, "ls", "/usr/").Start()
+	assert.True(ovr.HasProc(id))
 	time.Sleep(timeUnit)
 
 	stat = ovr.Status(id)
@@ -56,7 +58,9 @@ func TestSimpleSupervise(t *testing.T) {
 
 	ovr.Add("echo", "echo", "")
 	id := "sleep"
-	ovr.Add(id, "sleep", "1")
+	assert.NotNil(ovr.Add(id, "sleep", "1"))
+	assert.Nil(ovr.Add(id, "sleep", "9"))
+	assert.True(ovr.HasProc(id))
 
 	ovr.Supervise(id) // To supervise sleep. How cool is that?
 
