@@ -7,6 +7,7 @@ package overseer
 import (
 	"fmt"
 	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -104,8 +105,10 @@ func TestSleepOverseer(t *testing.T) {
 	ovr := NewOverseer()
 
 	id := "sleep"
-	ovr.Add(id, "sleep", "10").Start()
-	time.Sleep(timeUnit)
+	c := ovr.Add(id, "sleep", "10")
+	c.RetryTimes = 0
+	go ovr.Supervise(id)
+	time.Sleep(timeUnit * 4)
 
 	json := ovr.ToJSON(id)
 	// JSON status should contain the same info
@@ -114,14 +117,15 @@ func TestSleepOverseer(t *testing.T) {
 	assert.True(json.PID > 0)
 	assert.Nil(json.Error)
 
-	// success stop
-	assert.Nil(ovr.Stop(id))
-	time.Sleep(timeUnit * 5)
+	// success kill
+	assert.Nil(ovr.Signal(id, syscall.SIGKILL))
+	time.Sleep(timeUnit * 4)
 
 	// proc was killed
 	json = ovr.ToJSON(id)
 	assert.Equal("interrupted", json.State)
 	assert.Equal(-1, json.ExitCode)
+	assert.NotNil(json.Error)
 }
 
 func TestInvalidProcs(t *testing.T) {

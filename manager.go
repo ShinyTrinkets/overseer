@@ -368,7 +368,9 @@ func (ovr *Overseer) Supervise(id string) {
 		}
 
 		// Decrement the number of retries and increase the start time
-		retryTimes--
+		if retryTimes != 0 {
+			retryTimes--
+		}
 		delayStart += uint(bOff.Duration())
 
 		if retryTimes < 1 {
