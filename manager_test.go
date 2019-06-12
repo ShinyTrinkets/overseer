@@ -7,6 +7,7 @@ package overseer
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -50,6 +51,29 @@ func TestSimpleOverseer(t *testing.T) {
 
 	// Should not crash
 	ovr.StopAll()
+}
+
+func TestAddRemove(t *testing.T) {
+	assert := assert.New(t)
+	ovr := NewOverseer()
+
+	rng := make([]int, 10)
+	for nr := range rng {
+		assert.Equal(0, len(ovr.ListAll()))
+
+		nr := strconv.Itoa(nr)
+		id := fmt.Sprintf("id%s", nr)
+		assert.False(ovr.Remove(id))
+
+		assert.NotNil(ovr.Add(id, "sleep", nr))
+		assert.Nil(ovr.Add(id, "sleep", "999"))
+
+		assert.True(ovr.HasProc(id))
+		assert.Equal(1, len(ovr.ListAll()))
+
+		assert.True(ovr.Remove(id))
+		assert.Equal(0, len(ovr.ListAll()))
+	}
 }
 
 func TestSimpleSupervise(t *testing.T) {
