@@ -62,12 +62,21 @@ func Test4(t *testing.T) {
 }
 
 func TestForAttempt(t *testing.T) {
-
 	b := &Backoff{
 		Min:    100 * time.Millisecond,
 		Max:    10 * time.Second,
 		Factor: 2,
 	}
+
+	equals(t, b.ForAttempt(0), 100*time.Millisecond)
+	equals(t, b.ForAttempt(1), 200*time.Millisecond)
+	equals(t, b.ForAttempt(2), 400*time.Millisecond)
+	b.Reset()
+	equals(t, b.ForAttempt(0), 100*time.Millisecond)
+}
+
+func TestForAttemptDefaults(t *testing.T) {
+	b := &Backoff{}
 
 	equals(t, b.ForAttempt(0), 100*time.Millisecond)
 	equals(t, b.ForAttempt(1), 200*time.Millisecond)
