@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	logr "github.com/ShinyTrinkets/meta-logger"
+	ml "github.com/ShinyTrinkets/meta-logger"
 	DEATH "gopkg.in/vrecan/death.v3"
 )
 
@@ -18,20 +18,15 @@ const timeUnit = 100 * time.Millisecond
 
 type (
 	// Attrs is a type alias
-	Attrs = logr.Attrs
+	Attrs = ml.Attrs
 	// Logger is a type alias
-	Logger = logr.Logger
-	// DefaultLogger is a type alias
-	DefaultLogger = logr.DefaultLogger
+	Logger = ml.Logger
 )
-
-// Global log instance
-var log Logger
 
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
-	lock     sync.RWMutex
+	sync.RWMutex
 	procs    map[string]*Cmd
 	watchers []chan *ProcessJSON
 	running  bool
@@ -53,17 +48,30 @@ type ProcessJSON struct {
 	RetryTimes uint      `json:"retryTimes"`
 }
 
+// Global log instance
+var log ml.Logger
+var once sync.Once
+
+// SetupLogBuilder is called to add user's provided log builder.
+// It's just a wrapper around meta-logger SetupLogBuilder.
+func SetupLogBuilder(b ml.LogBuilderType) {
+	ml.SetupLogBuilder(b)
+}
+
 // NewOverseer creates a new process manager.
-// After creating it, add the procs and call SuperviseAll.
+// After creating it, Add the procs and call SuperviseAll.
 func NewOverseer() *Overseer {
-	if logr.NewLogger == nil {
+	once.Do(func() {
 		// When the logger is not defined, use the basic logger
-		logr.NewLogger = func(name string) Logger {
-			return &DefaultLogger{Name: name}
+		if ml.NewLogger == nil {
+			ml.SetupLogBuilder(func(name string) Logger {
+				return &ml.DefaultLogger{Name: name}
+			})
 		}
-	}
-	// Setup the logs by calling user's provided log builder
-	log = logr.NewLogger("overseer")
+		// Setup the logs by calling user's provided log builder
+		log = ml.NewLogger("overseer")
+	})
+
 	// Reset the random seed, for backoff jitter
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -116,9 +124,9 @@ func (ovr *Overseer) Status(id string) Status {
 // ToJSON returns a more detailed process status, ready to be converted to JSON.
 // Use this after calling ListAll() or ListGroup()
 func (ovr *Overseer) ToJSON(id string) *ProcessJSON {
-	ovr.lock.Lock()
+	ovr.Lock()
 	c := ovr.procs[id]
-	ovr.lock.Unlock()
+	ovr.Unlock()
 	s := c.Status()
 
 	cmdArgs := fmt.Sprint(c.Name, " ", c.Args)
@@ -169,9 +177,9 @@ func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 	c := NewCmd(exec, para, opts)
 	log.Info("Add process:", Attrs{"id": id, "name": exec, "args": para})
 
-	ovr.lock.Lock()
+	ovr.Lock()
 	ovr.procs[id] = c
-	ovr.lock.Unlock()
+	ovr.Unlock()
 	return c
 }
 
@@ -181,8 +189,8 @@ func (ovr *Overseer) Remove(id string) bool {
 	if !exists {
 		return false
 	}
-	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
+	ovr.Lock()
+	defer ovr.Unlock()
 	c := ovr.procs[id]
 
 	if c.IsInitialState() || c.IsFinalState() {
@@ -224,9 +232,9 @@ func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
 
 // Watch allows subscribing to state changes via provided output channel.
 func (ovr *Overseer) Watch(outputChan chan *ProcessJSON) {
-	ovr.lock.Lock()
+	ovr.Lock()
 	ovr.watchers = append(ovr.watchers, outputChan)
-	ovr.lock.Unlock()
+	ovr.Unlock()
 }
 
 // UnWatch allows un-subscribing from state changes.
@@ -238,9 +246,9 @@ func (ovr *Overseer) UnWatch(outputChan chan *ProcessJSON) {
 			break
 		}
 	}
-	ovr.lock.Lock()
+	ovr.Lock()
 	ovr.watchers = append(ovr.watchers[:index], ovr.watchers[index+1:]...)
-	ovr.lock.Unlock()
+	ovr.Unlock()
 }
 
 // SuperviseAll is the *main* function.
@@ -286,9 +294,9 @@ func (ovr *Overseer) SuperviseAll() {
 
 // Supervise launches a process and restart it in case of failure.
 func (ovr *Overseer) Supervise(id string) {
-	ovr.lock.Lock()
+	ovr.Lock()
 	c := ovr.procs[id]
-	ovr.lock.Unlock()
+	ovr.Unlock()
 
 	delayStart := c.DelayStart
 	retryTimes := c.RetryTimes
@@ -297,7 +305,7 @@ func (ovr *Overseer) Supervise(id string) {
 	// Overwrite the global log
 	// The STDOUT and STDERR of the process
 	// will also go into this log
-	var log = logr.NewLogger("proc")
+	log := ml.NewLogger("proc")
 
 	log.Info("Start overseeing process:", Attrs{"id": id, "cmd": cmdArg})
 
@@ -407,12 +415,12 @@ func (ovr *Overseer) Supervise(id string) {
 				stat.Error, retryTimes+1, Attrs{"id": id, "cmd": cmdArg})
 		}
 
-		ovr.lock.Lock()
+		ovr.Lock()
 		delete(ovr.procs, id)
 		// overwrite the top variable
 		c = c.CloneCmd()
 		ovr.procs[id] = c
-		ovr.lock.Unlock()
+		ovr.Unlock()
 
 		c.Lock()
 		c.DelayStart = delayStart
@@ -438,25 +446,25 @@ func (ovr *Overseer) StopAll() {
 }
 
 func (ovr *Overseer) isRunning() bool {
-	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
+	ovr.Lock()
+	defer ovr.Unlock()
 	return ovr.running
 }
 
 func (ovr *Overseer) setRunning(val bool) {
-	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
+	ovr.Lock()
+	defer ovr.Unlock()
 	ovr.running = val
 }
 
 func (ovr *Overseer) isStopping() bool {
-	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
+	ovr.Lock()
+	defer ovr.Unlock()
 	return ovr.stopping
 }
 
 func (ovr *Overseer) setStopping(val bool) {
-	ovr.lock.Lock()
-	defer ovr.lock.Unlock()
+	ovr.Lock()
+	defer ovr.Unlock()
 	ovr.stopping = val
 }

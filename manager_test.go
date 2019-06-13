@@ -13,17 +13,16 @@ import (
 	"testing"
 	"time"
 
-	ml "github.com/ShinyTrinkets/meta-logger"
 	cmd "github.com/ShinyTrinkets/overseer.go"
-	"github.com/azer/logger"
+	log "github.com/azer/logger"
 	"github.com/stretchr/testify/assert"
 )
 
 const timeUnit = 100 * time.Millisecond
 
 func TestMain(m *testing.M) {
-	ml.SetupLogBuilder(func(name string) cmd.Logger {
-		return logger.New(name)
+	cmd.SetupLogBuilder(func(name string) cmd.Logger {
+		return log.New(name)
 	})
 	os.Exit(m.Run())
 }

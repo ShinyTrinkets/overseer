@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 
-	ml "github.com/ShinyTrinkets/meta-logger"
 	"github.com/ShinyTrinkets/overseer.go"
 	log "github.com/azer/logger"
 	cli "github.com/jawher/mow.cli"
@@ -28,7 +27,7 @@ const (
 )
 
 func main() {
-	ml.SetupLogBuilder(func(name string) ml.Logger {
+	overseer.SetupLogBuilder(func(name string) overseer.Logger {
 		return log.New(name)
 	})
 
