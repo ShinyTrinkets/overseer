@@ -202,16 +202,6 @@ func (c *Cmd) CloneCmd() *Cmd {
 	return clone
 }
 
-// SetEnv sets the working directory of the command.
-// This can only have effect before starting the command.
-// The env should be in the form of KEY=value,
-// eg: EDITOR=vim
-func (c *Cmd) SetEnv(env []string) {
-	c.Lock()
-	defer c.Unlock()
-	c.Env = env
-}
-
 // setState sets the new internal state and might be used to trigger events.
 // Contains a minimal validation of states.
 func (c *Cmd) setState(state CmdState) {

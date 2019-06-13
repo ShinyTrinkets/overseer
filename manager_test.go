@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestOverseerSimple(t *testing.T) {
+func TestOverseerBasic(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -58,6 +58,26 @@ func TestOverseerSimple(t *testing.T) {
 	ovr.StopAll()
 }
 
+func TestOverseerOptions(t *testing.T) {
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	id := "ls"
+	opts := cmd.Options{
+		Group: "A", Dir: "/", Env: []string{"YES"},
+		Buffered: false, Streaming: false,
+		DelayStart: 1, RetryTimes: 9,
+	}
+
+	c := ovr.Add(id, "ls", opts)
+
+	assert.Equal(c.Group, opts.Group)
+	assert.Equal(c.Dir, opts.Dir)
+	assert.Equal(c.Env, opts.Env)
+	assert.Equal(c.DelayStart, opts.DelayStart)
+	assert.Equal(c.RetryTimes, opts.RetryTimes)
+}
+
 func TestOverseerAddRemove(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
@@ -79,6 +99,29 @@ func TestOverseerAddRemove(t *testing.T) {
 		assert.True(ovr.Remove(id))
 		assert.Equal(0, len(ovr.ListAll()))
 	}
+}
+
+func TestOverseerSignalStop(t *testing.T) {
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	id := "ping"
+	opts := cmd.Options{Buffered: false, Streaming: false, DelayStart: 1}
+	ovr.Add(id, "ping", []string{"localhost"}, opts)
+
+	json := ovr.ToJSON(id)
+	assert.Equal("initial", json.State)
+
+	assert.Nil(ovr.Stop(id))
+	assert.Nil(ovr.Stop(id))
+
+	assert.Nil(ovr.Signal(id, syscall.SIGTERM))
+	assert.Nil(ovr.Signal(id, syscall.SIGINT))
+
+	json = ovr.ToJSON(id)
+	assert.Equal("initial", json.State)
+
+	assert.Equal(1, len(ovr.ListAll()))
 }
 
 func TestOverseerSupervise(t *testing.T) {

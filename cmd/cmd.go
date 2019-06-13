@@ -69,7 +69,10 @@ func cmdRunAll(cmd *cli.Cmd) {
 				continue
 			}
 
-			opts := overseer.Options{Buffered: false, Streaming: true, DelayStart: 1, RetryTimes: 1}
+			opts := overseer.Options{
+				Buffered: false, Streaming: true,
+				Env: os.Environ(),
+			}
 			if proc.Cwd != "" {
 				opts.Dir = proc.Cwd
 			}
@@ -83,7 +86,6 @@ func cmdRunAll(cmd *cli.Cmd) {
 			if p == nil {
 				continue
 			}
-			p.SetEnv(append(os.Environ(), proc.Env...))
 		}
 
 		ovr.SuperviseAll()
