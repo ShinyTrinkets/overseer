@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestSimpleOverseer(t *testing.T) {
+func TestOverseerSimple(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -58,7 +58,7 @@ func TestSimpleOverseer(t *testing.T) {
 	ovr.StopAll()
 }
 
-func TestAddRemove(t *testing.T) {
+func TestOverseerAddRemove(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -81,13 +81,14 @@ func TestAddRemove(t *testing.T) {
 	}
 }
 
-func TestSimpleSupervise(t *testing.T) {
+func TestOverseerSupervise(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
 	opts := cmd.Options{Buffered: false, Streaming: false}
 	ovr.Add("echo", "echo", opts)
 	id := "sleep"
+	// double add test
 	assert.NotNil(ovr.Add(id, "sleep", []string{"1"}))
 	assert.Nil(ovr.Add(id, "sleep", []string{"9"}))
 
@@ -103,7 +104,7 @@ func TestSimpleSupervise(t *testing.T) {
 	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs: echo, sleep")
 }
 
-func TestSuperviseAll(t *testing.T) {
+func TestOverseerSuperviseAll(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -143,7 +144,7 @@ func TestSuperviseAll(t *testing.T) {
 	assert.Equal("finished", json.State)
 }
 
-func TestSleepOverseer(t *testing.T) {
+func TestOverseerSleep(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -171,7 +172,7 @@ func TestSleepOverseer(t *testing.T) {
 	assert.NotNil(json.Error)
 }
 
-func TestInvalidProcs(t *testing.T) {
+func TestOverseerInvalidProcs(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -217,7 +218,7 @@ func TestInvalidProcs(t *testing.T) {
 	assert.Equal("finished", json.State)
 }
 
-func TestWatchUnwatch(t *testing.T) {
+func TestOverseerWatchUnwatch(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 

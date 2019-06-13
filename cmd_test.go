@@ -18,7 +18,7 @@ import (
 	"github.com/go-test/deep"
 )
 
-func TestCloneProcess(t *testing.T) {
+func TestCmdClone(t *testing.T) {
 	opt := cmd.Options{
 		Group:      "group1",
 		Dir:        "/tmp",

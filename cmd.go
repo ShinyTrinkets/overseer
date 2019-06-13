@@ -135,16 +135,31 @@ type Options struct {
 
 // NewCmd creates a new Cmd for the given command name and arguments. The command
 // is not started until Start is called.
-// TODO :: Options should be a optional param
-func NewCmd(name string, args []string, options Options) *Cmd {
+func NewCmd(name string, args ...interface{}) *Cmd {
+	var para []string
+	opts := Options{Buffered: false, Streaming: true}
+
+	for _, arg := range args {
+		switch arg.(type) {
+		case []string:
+			for _, v := range arg.([]string) {
+				para = append(para, fmt.Sprint(v))
+			}
+		case Options:
+			opts = arg.(Options)
+		default:
+			// unknown arg type. ignore?
+		}
+	}
+
 	c := &Cmd{
 		Name:       name,
-		Group:      options.Group,
-		Args:       args,
-		Dir:        options.Dir,
-		Env:        options.Env,
+		Group:      opts.Group,
+		Args:       para,
+		Dir:        opts.Dir,
+		Env:        opts.Env,
 		DelayStart: defaultDelayStart,
-		RetryTimes: options.RetryTimes,
+		RetryTimes: opts.RetryTimes,
 		Mutex:      &sync.Mutex{},
 		stateLock:  &sync.Mutex{},
 		status: Status{
@@ -157,11 +172,11 @@ func NewCmd(name string, args []string, options Options) *Cmd {
 		changeChan: make(chan CmdState, 5),
 		doneChan:   make(chan struct{}),
 	}
-	if options.DelayStart > 0 {
-		c.DelayStart = options.DelayStart
+	if opts.DelayStart > 0 {
+		c.DelayStart = opts.DelayStart
 	}
-	c.buffered = options.Buffered
-	if options.Streaming {
+	c.buffered = opts.Buffered
+	if opts.Streaming {
 		c.Stdout = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
 		c.Stderr = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
 	}
