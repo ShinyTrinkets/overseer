@@ -235,7 +235,11 @@ func TestOverseerInvalidProcs(t *testing.T) {
 	}()
 
 	id := "err1"
-	ovr.Add(id, "qwertyuiop", []string{"zxcvbnm"})
+	opts1 := cmd.Options{
+		Buffered: false, Streaming: false,
+		DelayStart: 2, RetryTimes: 2,
+	}
+	ovr.Add(id, "qwertyuiop", []string{"zxcvbnm"}, opts1)
 	ovr.Supervise(id)
 
 	stat := ovr.Status(id)
@@ -253,7 +257,11 @@ func TestOverseerInvalidProcs(t *testing.T) {
 	assert.Nil(ovr.Stop(id))
 
 	id = "err2"
-	ovr.Add(id, "ls", []string{"/some_random_not_existent_path"})
+	opts2 := cmd.Options{
+		Buffered: false, Streaming: false,
+		DelayStart: 2, RetryTimes: 2,
+	}
+	ovr.Add(id, "ls", []string{"/some_random_not_existent_path"}, opts2)
 	ovr.Supervise(id)
 
 	stat = ovr.Status(id)
