@@ -418,7 +418,7 @@ func (ovr *Overseer) Supervise(id string) {
 		ovr.Lock()
 		delete(ovr.procs, id)
 		// overwrite the top variable
-		c = c.CloneCmd()
+		c = c.Clone()
 		ovr.procs[id] = c
 		ovr.Unlock()
 

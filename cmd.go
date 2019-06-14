@@ -1,6 +1,6 @@
 // Package overseer ;
-// cmd runs external commands with concurrent access to output and
-// status. It wraps the Go standard library os/exec.Command to correctly handle
+// cmd runs external commands with concurrent access to output and status.
+// It wraps the Go standard library os/exec.Command to correctly handle
 // reading output (STDOUT and STDERR) while a command is running and killing a
 // command. All operations are safe to call from multiple goroutines.
 //
@@ -12,12 +12,12 @@
 //
 //   import (
 //       "fmt"
-//       "github.com/go-cmd/cmd"
+//       cmd "https://github.com/ShinyTrinkets/overseer.go"
 //   )
 //
 //   func main() {
 //       // Create Cmd, buffered output
-//       envCmd := cmd.NewCmd("env")
+//       envCmd := cmd.NewCmd("env", cmd.Options{Buffered: true})
 //
 //       // Run and wait for Cmd to return Status
 //       status := <-envCmd.Start()
@@ -61,8 +61,7 @@ import (
 const defaultDelayStart uint = 25
 
 // Cmd represents an external command, similar to the Go built-in os/exec.Cmd.
-// A Cmd cannot be reused after calling Start. Exported fields are read-only and
-// should not be modified, except Env which can be set before calling Start.
+// A Cmd cannot be reused after calling Start, but it can be cloned with Clone.
 // To create a new Cmd, call NewCmd.
 type Cmd struct {
 	*sync.Mutex
@@ -133,8 +132,8 @@ type Options struct {
 	Streaming bool
 }
 
-// NewCmd creates a new Cmd for the given command name and arguments. The command
-// is not started until Start is called.
+// NewCmd creates a new Cmd for the given command name and arguments.
+// The command is not started until Start is called.
 func NewCmd(name string, args ...interface{}) *Cmd {
 	var para []string
 	opts := Options{Buffered: false, Streaming: true}
@@ -183,9 +182,9 @@ func NewCmd(name string, args ...interface{}) *Cmd {
 	return c
 }
 
-// CloneCmd clones a Cmd. All the configs are transferred,
-// and the state of the original object is lost.
-func (c *Cmd) CloneCmd() *Cmd {
+// Clone clones a Cmd. All the configs are transferred,
+// but the state of the original object is lost.
+func (c *Cmd) Clone() *Cmd {
 	clone := NewCmd(
 		c.Name,
 		c.Args,

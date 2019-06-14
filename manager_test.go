@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const timeUnit = 100 * time.Millisecond
+const timeUnit = 200 * time.Millisecond
 
 func TestMain(m *testing.M) {
 	cmd.SetupLogBuilder(func(name string) cmd.Logger {
@@ -194,7 +194,10 @@ func TestOverseerSleep(t *testing.T) {
 	opts := cmd.Options{Buffered: false, Streaming: false, DelayStart: 1}
 	ovr.Add(id, "sleep", []string{"10"}, opts)
 	go ovr.Supervise(id)
-	time.Sleep(timeUnit * 4)
+	time.Sleep(timeUnit)
+
+	// can't remove while it's running
+	assert.False(ovr.Remove(id))
 
 	json := ovr.ToJSON(id)
 	// JSON status should contain the same info
@@ -205,13 +208,16 @@ func TestOverseerSleep(t *testing.T) {
 
 	// success kill
 	assert.Nil(ovr.Signal(id, syscall.SIGKILL))
-	time.Sleep(timeUnit * 4)
+	time.Sleep(timeUnit)
 
 	// proc was killed
 	json = ovr.ToJSON(id)
 	assert.Equal("interrupted", json.State)
 	assert.Equal(-1, json.ExitCode)
 	assert.NotNil(json.Error)
+
+	// can remove now
+	assert.True(ovr.Remove(id))
 }
 
 func TestOverseerInvalidProcs(t *testing.T) {
@@ -258,6 +264,20 @@ func TestOverseerInvalidProcs(t *testing.T) {
 	assert.True(stat.Exit > 0, "Exit code should be positive")
 	assert.Nil(stat.Error, "Error should be nil")
 	assert.Equal("finished", json.State)
+}
+
+func TestOverseerInvalidParams(t *testing.T) {
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	assert.NotNil(ovr.Add("valid1", "x", []string{"abc"}))
+	assert.NotNil(ovr.Add("valid2", "y", cmd.Options{Buffered: false, Streaming: false}))
+	// empty exec command
+	assert.Nil(ovr.Add("err1", ""))
+	// invalid optional param
+	assert.Nil(ovr.Add("err2", "x", 1))
+	assert.Nil(ovr.Add("err3", "x", nil))
+	assert.Nil(ovr.Add("err4", "x", true))
 }
 
 func TestOverseerWatchUnwatch(t *testing.T) {

@@ -28,7 +28,7 @@ func TestCmdClone(t *testing.T) {
 	}
 
 	c1 := cmd.NewCmd("ls", []string{}, opt)
-	c2 := c1.CloneCmd()
+	c2 := c1.Clone()
 
 	if diffs := deep.Equal(c1.Group, c2.Group); diffs != nil {
 		t.Error(diffs)
@@ -1054,5 +1054,21 @@ func TestCmdNoOutput(t *testing.T) {
 	}
 	if len(s.Stderr) != 0 {
 		t.Errorf("got stderr, expected no output: %v", s.Stderr)
+	}
+}
+
+func TestCmdWrongArgs(t *testing.T) {
+	// Set both output options to false to discard all output
+	opt := cmd.Options{
+		Buffered:  false,
+		Streaming: false,
+	}
+	p := cmd.NewCmd("echo", []string{"abc"}, opt, nil, false, 1)
+	s := <-p.Start()
+	if s.Exit != 0 {
+		t.Errorf("got exit %d, expected 0", s.Exit)
+	}
+	if s.PID < 0 {
+		t.Errorf("got PID %d, expected non-zero", s.PID)
 	}
 }
