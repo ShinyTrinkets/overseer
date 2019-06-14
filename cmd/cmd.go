@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 
 	"github.com/ShinyTrinkets/overseer.go"
 	log "github.com/azer/logger"
 	cli "github.com/jawher/mow.cli"
 	quote "github.com/kballard/go-shellquote"
-	yml "gopkg.in/yaml.v2"
+	yml "gopkg.in/yaml.v3"
 )
 
 // Process represents an OS process
@@ -26,12 +27,23 @@ const (
 	descrip = "(<>..<>)"
 )
 
+var (
+	// injected by go build
+	commitHash string
+	buildTime  string
+)
+
 func main() {
 	overseer.SetupLogBuilder(func(name string) overseer.Logger {
 		return log.New(name)
 	})
 
 	app := cli.App(name, descrip)
+
+	ver := (name + " " + descrip + "\n" + runtime.GOOS + " " + runtime.GOARCH +
+		"\n\n◇ Revision: " + commitHash + "\n◇ Compiled: " + buildTime)
+	app.Version("v version", ver)
+
 	app.Command("start", "Run Overseer", cmdRunAll)
 	app.Run(os.Args)
 }

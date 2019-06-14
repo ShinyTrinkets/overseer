@@ -1,0 +1,14 @@
+[Unit]
+Description=Overseer daemon
+Wants=network.target
+After=network.target
+
+[Service]
+ExecStart=overseer start -c ${config}
+User=user
+Group=users
+RestartSec=5
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
