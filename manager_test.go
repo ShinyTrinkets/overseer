@@ -346,3 +346,32 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 	// 	fmt.Println(e.Value)
 	// }
 }
+
+func TestOverseersMany(t *testing.T) {
+	assert := assert.New(t)
+
+	rng := []int{10, 11, 12, 13, 14, 15}
+	for _, nr := range rng {
+		ovr := cmd.NewOverseer()
+		assert.Equal(0, len(ovr.ListAll()))
+
+		nr := strconv.Itoa(nr)
+		id := fmt.Sprintf("id%s", nr)
+		opts := cmd.Options{
+			Group: "A", Dir: "/",
+			Buffered: false, Streaming: false,
+			DelayStart: 1, RetryTimes: 1,
+		}
+		ovr.Add(id, "sleep", []string{nr}, opts)
+
+		assert.Equal(1, len(ovr.ListAll()))
+
+		go ovr.SuperviseAll()
+		time.Sleep(timeUnit * 2)
+		ovr.StopAll()
+		time.Sleep(timeUnit * 2)
+
+		json := ovr.ToJSON(id)
+		assert.Equal("interrupted", json.State)
+	}
+}

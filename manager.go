@@ -259,8 +259,9 @@ func (ovr *Overseer) SuperviseAll() {
 		return
 	}
 
-	ovr.setRunning(true)
 	log.Info("Start supervise all")
+	ovr.setStopping(false)
+	ovr.setRunning(true)
 
 	for id := range ovr.procs {
 		go ovr.Supervise(id)
@@ -321,7 +322,7 @@ func (ovr *Overseer) Supervise(id string) {
 	}
 
 	for {
-		if ovr.stopping {
+		if ovr.isStopping() {
 			break
 		}
 		if delayStart > 0 {
@@ -358,7 +359,7 @@ func (ovr *Overseer) Supervise(id string) {
 				for _, outputChan := range ovr.watchers {
 					outputChan <- info
 				}
-				if ovr.stopping || c.IsFinalState() {
+				if ovr.isStopping() || c.IsFinalState() {
 					break
 				}
 			}
@@ -377,7 +378,7 @@ func (ovr *Overseer) Supervise(id string) {
 				case line := <-c.Stderr:
 					log.Error(line)
 				default:
-					if ovr.stopping || c.IsFinalState() {
+					if ovr.isStopping() || c.IsFinalState() {
 						// log.Info("Close STDOUT and STDERR loop:", Attrs{"id": id})
 						return
 					}
@@ -395,7 +396,7 @@ func (ovr *Overseer) Supervise(id string) {
 			break
 		}
 
-		if ovr.stopping {
+		if ovr.isStopping() {
 			break
 		}
 
