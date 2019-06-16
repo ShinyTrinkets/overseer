@@ -6,7 +6,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/ShinyTrinkets/overseer.go"
+	"github.com/ShinyTrinkets/overseer"
 	log "github.com/azer/logger"
 	cli "github.com/jawher/mow.cli"
 	quote "github.com/kballard/go-shellquote"

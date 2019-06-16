@@ -12,7 +12,7 @@
 //
 //   import (
 //       "fmt"
-//       cmd "https://github.com/ShinyTrinkets/overseer.go"
+//       cmd "https://github.com/ShinyTrinkets/overseer"
 //   )
 //
 //   func main() {

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	cmd "github.com/ShinyTrinkets/overseer.go"
+	cmd "github.com/ShinyTrinkets/overseer"
 	"github.com/go-test/deep"
 )
 

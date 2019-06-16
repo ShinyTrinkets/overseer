@@ -1,7 +1,7 @@
 github.com/ShinyTrinkets/meta-logger v0.2.0 h1:oR533+wuhSJ+vLsnSq1CBSGQygNv8nDsvuRUVcOls0g=
 github.com/ShinyTrinkets/meta-logger v0.2.0/go.mod h1:cY1KnpPfpLIopR+arZXHYVrVGO6AETrhi3HmRGFjU+U=
-github.com/ShinyTrinkets/overseer.go v0.3.0 h1:SVXotkrVEuIgiRPUye3x/rD4ZyeLmRMj8tUmRhrEoLA=
-github.com/ShinyTrinkets/overseer.go v0.3.0/go.mod h1:By5eqSuWd0gHLfiTQkrBopi9PDYtOq3zmDYNYWP1bVg=
+github.com/ShinyTrinkets/overseer v0.3.0 h1:SVXotkrVEuIgiRPUye3x/rD4ZyeLmRMj8tUmRhrEoLA=
+github.com/ShinyTrinkets/overseer v0.3.0/go.mod h1:By5eqSuWd0gHLfiTQkrBopi9PDYtOq3zmDYNYWP1bVg=
 github.com/azer/is-terminal v1.0.0 h1:COvj8jmg2xMz0CqHn4Uu8X1m7Dmzmu0CpciBaLtJQBg=
 github.com/azer/is-terminal v1.0.0/go.mod h1:5geuIpRQvdv6g/Q1MwXHbmNUlFLg8QcheGk4dZOmxQU=
 github.com/azer/logger v1.0.0 h1:3T4BnTLyndJWHajOyECt2kAhnvP30KCrVAkYcMjHrXk=

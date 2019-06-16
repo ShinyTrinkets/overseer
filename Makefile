@@ -1,6 +1,4 @@
 
-PACKAGE := github.com/ShinyTrinkets/overseer.go
-
 REVISION_VAR := main.commitHash
 REVISION_VALUE ?= $(shell git rev-parse --short HEAD 2>/dev/null)
 BUILT_VAR := main.buildTime

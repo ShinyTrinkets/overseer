@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	cmd "github.com/ShinyTrinkets/overseer.go"
+	cmd "github.com/ShinyTrinkets/overseer"
 	log "github.com/azer/logger"
 	"github.com/stretchr/testify/assert"
 )
