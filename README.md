@@ -55,9 +55,9 @@ Icon is made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> fro
 
 [project-img]: https://badgen.net/badge/%E2%AD%90/Trinkets/4B0082
 [project-url]: https://github.com/ShinyTrinkets
-[build-img]: https://badgen.net/travis/ShinyTrinkets/overseer.go
-[build-url]: https://travis-ci.org/ShinyTrinkets/overseer.go
-[cover-img]: https://codecov.io/gh/ShinyTrinkets/overseer.go/branch/master/graph/badge.svg
-[cover-url]: https://codecov.io/gh/ShinyTrinkets/overseer.go
-[goreport-img]: https://goreportcard.com/badge/github.com/ShinyTrinkets/overseer.go
-[goreport-url]: https://goreportcard.com/report/github.com/ShinyTrinkets/overseer.go
+[build-img]: https://badgen.net/travis/ShinyTrinkets/overseer
+[build-url]: https://travis-ci.org/ShinyTrinkets/overseer
+[cover-img]: https://codecov.io/gh/ShinyTrinkets/overseer/branch/master/graph/badge.svg
+[cover-url]: https://codecov.io/gh/ShinyTrinkets/overseer
+[goreport-img]: https://goreportcard.com/badge/github.com/ShinyTrinkets/overseer
+[goreport-url]: https://goreportcard.com/report/github.com/ShinyTrinkets/overseer
