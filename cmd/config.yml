@@ -1,0 +1,18 @@
+
+app1:
+  cmd: ping localhost -c 5
+  delay: 10
+  retry: 5
+
+app2:
+  cmd: ls nonExistent
+  delay: 1
+  retry: 2
+
+app3:
+  cmd: bash -C ENV
+  env:
+    - EDITOR=vim
+    - ZZZ=123
+  delay: 1
+  retry: 5
