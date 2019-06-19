@@ -13,12 +13,13 @@
 
 > Simple process manager library.
 
-At the core of this library is the [os/exec.Cmd](https://golang.org/pkg/os/exec/#Cmd) from Go-lang and the first wrapper for that is the Cmd struct.<br/>
-The Overseer struct can supervise one or more Commands running at the same time.<br/>
+At the core of this library is the [os/exec.Cmd](https://golang.org/pkg/os/exec/#Cmd) from Go-lang and the first wrapper for that is the **Cmd struct**.<br/>
+The **Overseer struct** can supervise one or more Cmds running at the same time.<br/>
 You can safely run multiple Overseer instances at the same time.
 
 It's recommended to use Overseer, instead of Cmd directly.<br/>
-If you use Cmd directly, keep in mind that Cmd is *one use only*. After starting a Cmd instance, it cannot be started again. However, you can Clone your instance and start the clone.
+If you use Cmd directly, keep in mind that it is *one use only*. After starting a instance, it cannot be started again. However, you can Clone your instance and start the clone.<br/>
+The Supervise method from the Overseer does all of that for you.
 
 There are 3 states in the normal lifecycle of a proc: starting, running, finished.<br/>
 If the process is killed prematurely, the states are: starting, running, interrupted.<br/>
