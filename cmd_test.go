@@ -72,7 +72,7 @@ func TestCmdOK(t *testing.T) {
 
 func TestCmdNonzeroExit(t *testing.T) {
 	assert := assert.New(t)
-	p := cmd.NewCmd("false", []string{}, cmd.Options{Buffered: true})
+	p := cmd.NewCmd("false", []string{})
 
 	gotStatus := <-p.Start()
 	expectStatus := cmd.Status{
@@ -81,8 +81,6 @@ func TestCmdNonzeroExit(t *testing.T) {
 		Exit:    1,
 		Error:   nil,
 		Runtime: gotStatus.Runtime, // nondeterministic
-		Stdout:  []string{},
-		Stderr:  []string{},
 	}
 	gotStatus.StartTs = 0
 	gotStatus.StopTs = 0
@@ -107,6 +105,18 @@ func TestCmdSleepExit1(t *testing.T) {
 func TestCmdSigtermExit1(t *testing.T) {
 	assert := assert.New(t)
 	p := cmd.NewCmd("bash", []string{"./testdata/sigterm-exit-0"})
+	assert.True(p.IsInitialState())
+
+	gotStatus := <-p.Start()
+	assert.Equal(1, gotStatus.Exit)
+	assert.Equal(nil, gotStatus.Error)
+
+	assert.True(p.IsFinalState())
+}
+
+func TestCmdBashExit1(t *testing.T) {
+	assert := assert.New(t)
+	p := cmd.NewCmd("bash", []string{"-c", "echo 'First'; sleep 1; exit 1"})
 	assert.True(p.IsInitialState())
 
 	gotStatus := <-p.Start()

@@ -383,3 +383,19 @@ func TestOverseersMany(t *testing.T) {
 		assert.Equal("interrupted", json.State)
 	}
 }
+
+func TestOverseersExit1(t *testing.T) {
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	id := "bash1"
+	opts := cmd.Options{DelayStart: 1, RetryTimes: 1}
+	ovr.Add("bash1", "bash", opts, []string{"-c", "echo 'First'; sleep 1; exit 1"})
+
+	ovr.Supervise(id)
+
+	json := ovr.ToJSON(id)
+	assert.Equal(1, json.ExitCode)
+	assert.Equal(nil, json.Error)
+	assert.Equal("finished", json.State)
+}

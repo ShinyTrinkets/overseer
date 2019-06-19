@@ -392,7 +392,7 @@ func (ovr *Overseer) Supervise(id string) {
 
 		// If the process didn't have any failures
 		// Exited normally, no need to retry
-		if stat.Exit == 0 || stat.Error == nil {
+		if stat.Exit == 0 && stat.Error == nil {
 			break
 		}
 
