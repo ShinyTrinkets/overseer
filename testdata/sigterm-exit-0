@@ -1,4 +1,4 @@
 #!/bin/bash
 trap "exit 0" SIGTERM
-sleep 5
+sleep 2
 exit 1

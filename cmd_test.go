@@ -16,9 +16,12 @@ import (
 
 	cmd "github.com/ShinyTrinkets/overseer"
 	"github.com/go-test/deep"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCmdClone(t *testing.T) {
+	assert := assert.New(t)
+
 	opt := cmd.Options{
 		Group:      "group1",
 		Dir:        "/tmp",
@@ -30,24 +33,15 @@ func TestCmdClone(t *testing.T) {
 	c1 := cmd.NewCmd("ls", []string{}, opt)
 	c2 := c1.Clone()
 
-	if diffs := deep.Equal(c1.Group, c2.Group); diffs != nil {
-		t.Error(diffs)
-	}
-	if diffs := deep.Equal(c1.Dir, c2.Dir); diffs != nil {
-		t.Error(diffs)
-	}
-	if diffs := deep.Equal(c1.Env, c2.Env); diffs != nil {
-		t.Error(diffs)
-	}
-	if diffs := deep.Equal(c1.DelayStart, c2.DelayStart); diffs != nil {
-		t.Error(diffs)
-	}
-	if diffs := deep.Equal(c1.RetryTimes, c2.RetryTimes); diffs != nil {
-		t.Error(diffs)
-	}
+	assert.Equal(c1.Group, c2.Group)
+	assert.Equal(c1.Dir, c2.Dir)
+	assert.Equal(c1.Env, c2.Env)
+	assert.Equal(c1.DelayStart, c2.DelayStart)
+	assert.Equal(c1.RetryTimes, c2.RetryTimes)
 }
 
 func TestCmdOK(t *testing.T) {
+	assert := assert.New(t)
 	now := time.Now().Unix()
 
 	p := cmd.NewCmd("echo", []string{"foo"}, cmd.Options{Buffered: true})
@@ -64,30 +58,22 @@ func TestCmdOK(t *testing.T) {
 		Stdout:  []string{"foo"},
 		Stderr:  []string{},
 	}
-	if gotStatus.StartTs < now {
-		t.Error("StartTs < now")
-	}
-	if gotStatus.StopTs < gotStatus.StartTs {
-		t.Error("StopTs < StartTs")
-	}
+
+	assert.True(gotStatus.StartTs > now)
+	assert.True(gotStatus.StopTs > gotStatus.StartTs)
 	gotStatus.StartTs = 0
 	gotStatus.StopTs = 0
-	if diffs := deep.Equal(gotStatus, expectStatus); diffs != nil {
-		t.Error(diffs)
-	}
-	if gotStatus.PID < 0 {
-		t.Errorf("got PID %d, expected non-zero", gotStatus.PID)
-	}
-	if gotStatus.Runtime < 0 {
-		t.Errorf("got runtime %f, expected non-zero", gotStatus.Runtime)
-	}
-	if p.State != cmd.FINISHED {
-		t.Errorf("got state %s, expected FINISHED", p.State)
-	}
+
+	assert.Equal(gotStatus, expectStatus)
+	assert.True(gotStatus.PID > 0)
+	assert.True(gotStatus.Runtime > 0)
+	assert.True(p.State == cmd.FINISHED)
 }
 
 func TestCmdNonzeroExit(t *testing.T) {
+	assert := assert.New(t)
 	p := cmd.NewCmd("false", []string{}, cmd.Options{Buffered: true})
+
 	gotStatus := <-p.Start()
 	expectStatus := cmd.Status{
 		Cmd:     "false",
@@ -100,18 +86,34 @@ func TestCmdNonzeroExit(t *testing.T) {
 	}
 	gotStatus.StartTs = 0
 	gotStatus.StopTs = 0
-	if diffs := deep.Equal(gotStatus, expectStatus); diffs != nil {
-		t.Error(diffs)
-	}
-	if gotStatus.PID < 0 {
-		t.Errorf("got PID %d, expected non-zero", gotStatus.PID)
-	}
-	if gotStatus.Runtime < 0 {
-		t.Errorf("got runtime %f, expected non-zero", gotStatus.Runtime)
-	}
-	if p.State != cmd.FINISHED {
-		t.Errorf("got state %s, expected FINISHED", p.State)
-	}
+	assert.Equal(gotStatus, expectStatus)
+	assert.True(gotStatus.PID > 0)
+	assert.True(gotStatus.Runtime > 0)
+	assert.True(p.State == cmd.FINISHED)
+}
+
+func TestCmdSleepExit1(t *testing.T) {
+	assert := assert.New(t)
+	p := cmd.NewCmd("bash", []string{"./testdata/sleep-exit-1"})
+	assert.True(p.IsInitialState())
+
+	gotStatus := <-p.Start()
+	assert.Equal(1, gotStatus.Exit)
+	assert.Equal(nil, gotStatus.Error)
+
+	assert.True(p.IsFinalState())
+}
+
+func TestCmdSigtermExit1(t *testing.T) {
+	assert := assert.New(t)
+	p := cmd.NewCmd("bash", []string{"./testdata/sigterm-exit-0"})
+	assert.True(p.IsInitialState())
+
+	gotStatus := <-p.Start()
+	assert.Equal(1, gotStatus.Exit)
+	assert.Equal(nil, gotStatus.Error)
+
+	assert.True(p.IsFinalState())
 }
 
 func TestCmdStop(t *testing.T) {

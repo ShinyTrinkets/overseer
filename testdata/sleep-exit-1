@@ -1,0 +1,6 @@
+#!/bin/bash
+echo 'First'
+sleep 2
+echo 'Second'
+sleep 1
+exit 1
