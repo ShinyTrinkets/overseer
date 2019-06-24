@@ -263,6 +263,10 @@ func (ovr *Overseer) SuperviseAll() {
 		log.Error("Supervise all is already running")
 		return
 	}
+	if ovr.isStopping() {
+		log.Info("Overseer is stopping")
+		return
+	}
 
 	log.Info("Start supervise all")
 	ovr.setStopping(false)
@@ -313,13 +317,15 @@ func (ovr *Overseer) Supervise(id string) {
 	cmdArg := fmt.Sprint(c.Name, " ", c.Args)
 
 	// Overwrite the global log
-	// The STDOUT and STDERR of the process
-	// will also go into this log
+	// The STDOUT and STDERR of the process will also go into this log
 	log := ml.NewLogger("proc")
 
 	log.Info("Start overseeing process:", Attrs{"id": id, "cmd": cmdArg})
 
 	jMax := delayStart
+	if delayStart < 1 {
+		delayStart = 1
+	}
 	if delayStart < 10 {
 		jMax = 10
 	}
@@ -334,6 +340,10 @@ func (ovr *Overseer) Supervise(id string) {
 		if ovr.isStopping() {
 			break
 		}
+		if !c.IsInitialState() {
+			break
+		}
+
 		if delayStart > 0 {
 			time.Sleep(time.Duration(delayStart) * time.Millisecond)
 		}
@@ -456,6 +466,8 @@ func (ovr *Overseer) StopAll() {
 		c.Unlock()
 		ovr.Stop(id)
 	}
+
+	log.Info("All procs shutdown")
 }
 
 func (ovr *Overseer) isRunning() bool {

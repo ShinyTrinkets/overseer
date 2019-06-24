@@ -360,7 +360,7 @@ func (c *Cmd) Status() Status {
 
 // Done returns a channel that's closed when the command stops running.
 // This method is useful for multiple goroutines to wait for the command
-// to finish.Call Status after the command finishes to get its final status.
+// to finish. Call Status after the command finishes to get its final status.
 func (c *Cmd) Done() <-chan struct{} {
 	return c.doneChan
 }
