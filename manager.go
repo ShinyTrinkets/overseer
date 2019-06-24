@@ -174,8 +174,9 @@ func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 		log.Error("Cannot add process, it exists already!", Attrs{"id": id})
 		return nil
 	}
-	c := NewCmd(exec, para, opts)
+
 	log.Info("Add process:", Attrs{"id": id, "name": exec, "args": para})
+	c := NewCmd(exec, para, opts)
 
 	ovr.Lock()
 	ovr.procs[id] = c
@@ -206,6 +207,8 @@ func (ovr *Overseer) Remove(id string) bool {
 // Stop the process by sending its process group a SIGTERM signal.
 // The process can be started again, if needed.
 func (ovr *Overseer) Stop(id string) error {
+	ovr.Lock()
+	defer ovr.Unlock()
 	c := ovr.procs[id]
 
 	if err := c.Stop(); err != nil {
@@ -219,6 +222,8 @@ func (ovr *Overseer) Stop(id string) error {
 
 // Signal sends OS signal to the process group.
 func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
+	ovr.Lock()
+	defer ovr.Unlock()
 	c := ovr.procs[id]
 
 	if err := c.Signal(sig); err != nil {
@@ -263,9 +268,13 @@ func (ovr *Overseer) SuperviseAll() {
 	ovr.setStopping(false)
 	ovr.setRunning(true)
 
+	// Launch Cmd. Lock is needed because Supervise deletes from the map of Cmds.
+	ovr.Lock()
 	for id := range ovr.procs {
 		go ovr.Supervise(id)
 	}
+	ovr.Unlock()
+
 	// Check all procs every tick
 	// NOTE: This should probably be implemented with a WaitGroup,
 	// for each Supervise() the counter goes up, and at the end it goes down
@@ -328,6 +337,21 @@ func (ovr *Overseer) Supervise(id string) {
 		if delayStart > 0 {
 			time.Sleep(time.Duration(delayStart) * time.Millisecond)
 		}
+
+		// Clone the old Cmd in case of restart
+		if c.IsFinalState() {
+			ovr.Lock()
+			delete(ovr.procs, id)
+			// overwrite the top variable
+			c = c.Clone()
+			ovr.procs[id] = c
+			ovr.Unlock()
+		}
+
+		c.Lock()
+		c.DelayStart = delayStart
+		c.RetryTimes = retryTimes
+		c.Unlock()
 
 		log.Info("Start process:", Attrs{
 			"id":         id,
@@ -415,18 +439,6 @@ func (ovr *Overseer) Supervise(id string) {
 			log.Error("Process exited abnormally. Err: %s. Restarting [%d]. ",
 				stat.Error, retryTimes+1, Attrs{"id": id, "cmd": cmdArg})
 		}
-
-		ovr.Lock()
-		delete(ovr.procs, id)
-		// overwrite the top variable
-		c = c.Clone()
-		ovr.procs[id] = c
-		ovr.Unlock()
-
-		c.Lock()
-		c.DelayStart = delayStart
-		c.RetryTimes = retryTimes
-		c.Unlock()
 	}
 
 	c.Stop()     // just to make sure the status is updated

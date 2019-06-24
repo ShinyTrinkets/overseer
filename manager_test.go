@@ -389,7 +389,7 @@ func TestOverseersExit1(t *testing.T) {
 	ovr := cmd.NewOverseer()
 
 	id := "bash1"
-	opts := cmd.Options{DelayStart: 1, RetryTimes: 1}
+	opts := cmd.Options{DelayStart: 1, RetryTimes: 1} //, Buffered: true} // crashes
 	ovr.Add("bash1", "bash", opts, []string{"-c", "echo 'First'; sleep 1; exit 1"})
 
 	ovr.Supervise(id)
@@ -398,4 +398,61 @@ func TestOverseersExit1(t *testing.T) {
 	assert.Equal(1, json.ExitCode)
 	assert.Equal(nil, json.Error)
 	assert.Equal("finished", json.State)
+}
+
+func TestOverseerKillRestart(t *testing.T) {
+	// The purpose of this test is to check how Overseer
+	// handles several Supervise/ Stop of the same proc
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	id := "sleep1"
+	opts := cmd.Options{DelayStart: 100, RetryTimes: 1} //, Buffered: true} // crashes
+	ovr.Add(id, "sleep", opts, []string{"10"})
+
+	json := ovr.ToJSON(id)
+	assert.Equal("initial", json.State)
+	assert.Equal(-1, json.ExitCode)
+	assert.Nil(json.Error)
+
+	rng := []int{1, 2, 3, 4, 5}
+	for range rng {
+		go ovr.Supervise(id)
+		time.Sleep(timeUnit * 2)
+		assert.Nil(ovr.Stop(id))
+		time.Sleep(timeUnit * 2)
+
+		json = ovr.ToJSON(id)
+		assert.Equal("interrupted", json.State)
+		assert.Equal(-1, json.ExitCode)
+		assert.NotNil(json.Error)
+	}
+}
+
+func TestOverseerFinishRestart(t *testing.T) {
+	// The purpose of this test is to check how Overseer
+	// handles several Supervise, finish, restart
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	id := "ls1"
+	opts := cmd.Options{DelayStart: 1} //, Buffered: true} // crashes
+	ovr.Add(id, "ls", opts, []string{"-la"})
+
+	json := ovr.ToJSON(id)
+	assert.Equal("initial", json.State)
+	assert.Equal(-1, json.ExitCode)
+	assert.Nil(json.Error)
+
+	rng := []int{1, 2, 3, 4, 5}
+	for range rng {
+		ovr.Supervise(id)
+		time.Sleep(timeUnit * 2)
+		assert.Nil(ovr.Stop(id))
+
+		json = ovr.ToJSON(id)
+		assert.Equal(0, json.ExitCode)
+		assert.Equal(nil, json.Error)
+		assert.Equal("finished", json.State)
+	}
 }
