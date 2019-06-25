@@ -28,6 +28,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestOverseerBasic(t *testing.T) {
+	// The most basic Overseer test,
+	// check that Add returns a Cmd
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -58,6 +60,7 @@ func TestOverseerBasic(t *testing.T) {
 }
 
 func TestOverseerOptions(t *testing.T) {
+	// Test all possible options when adding a proc
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -78,6 +81,7 @@ func TestOverseerOptions(t *testing.T) {
 }
 
 func TestOverseerAddRemove(t *testing.T) {
+	// Test adding and removing
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -124,6 +128,7 @@ func TestOverseerSignalStop(t *testing.T) {
 }
 
 func TestOverseerSupervise(t *testing.T) {
+	// Test single Supervise
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -147,43 +152,65 @@ func TestOverseerSupervise(t *testing.T) {
 }
 
 func TestOverseerSuperviseAll(t *testing.T) {
+	// Test Supervise all
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
-	id := "echo"
-	ovr.Add(id, "echo", []string{"x"})
+	id := "sleep"
+	ovr.Add(id, "sleep", []string{"1"})
 
 	stat := ovr.Status(id)
-	assert.Equal(stat.Exit, -1, "Exit code should be -1")
-	assert.Equal(stat.PID, 0)
+	assert.Equal(-1, stat.Exit)
+	assert.Equal(0, stat.PID)
 
 	id = "list"
 	ovr.Add(id, "ls", []string{"/usr/"})
 
 	// list before supervise
-	assert.Equal([]string{"echo", "list"}, ovr.ListAll())
+	assert.Equal([]string{"list", "sleep"}, ovr.ListAll())
 
 	stat = ovr.Status(id)
 	assert.Equal(-1, stat.Exit)
 	assert.Equal(0, stat.PID)
 
+	// ch1 := make(chan *cmd.ProcessJSON)
+	// ovr.Watch(ch1)
+	// go func() {
+	// 	for state := range ch1 {
+	// 		fmt.Printf("> STATE CHANGED %v\n", state)
+	// 	}
+	// }()
+
 	// block and wait for procs to finish
 	go ovr.SuperviseAll()
 	// next calls shouldn't do anything
+	go ovr.SuperviseAll()
+	go ovr.SuperviseAll()
 	ovr.SuperviseAll()
 	ovr.SuperviseAll()
 
-	time.Sleep(timeUnit * 4)
-
-	// list after supervise
-	assert.Equal([]string{"echo", "list"}, ovr.ListAll())
-
-	stat = ovr.Status(id)
-	assert.Equal(0, stat.Exit)
-	assert.NotEqual(0, stat.PID)
+	time.Sleep(1 * time.Second)
+	time.Sleep(timeUnit)
 
 	json := ovr.ToJSON(id)
 	assert.Equal("finished", json.State)
+
+	// list after supervise
+	assert.Equal([]string{"list", "sleep"}, ovr.ListAll())
+
+	json = ovr.ToJSON(id)
+	assert.Equal(0, json.ExitCode)
+	assert.NotEqual(0, json.PID)
+	assert.Equal("finished", json.State)
+	pid1 := json.PID
+
+	// check that SuperviseAll can be run again
+	ovr.SuperviseAll()
+
+	json = ovr.ToJSON(id)
+	pid2 := json.PID
+
+	assert.NotEqual(pid1, pid2)
 }
 
 func TestOverseerSleep(t *testing.T) {
@@ -275,6 +302,8 @@ func TestOverseerInvalidProcs(t *testing.T) {
 }
 
 func TestOverseerInvalidParams(t *testing.T) {
+	// The purpose of this test is to check that
+	// Overseer.Add rejects invalid params
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -356,6 +385,8 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 }
 
 func TestOverseersMany(t *testing.T) {
+	// The purpose of this test is to check that
+	// multiple Overseer instances can be run concurently
 	assert := assert.New(t)
 
 	rng := []int{10, 11, 12, 13, 14, 15}
@@ -385,6 +416,8 @@ func TestOverseersMany(t *testing.T) {
 }
 
 func TestOverseersExit1(t *testing.T) {
+	// The purpose of this test is to check the Overseer
+	// handles Exit Codes != 0
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 

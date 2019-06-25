@@ -262,11 +262,11 @@ func (ovr *Overseer) UnWatch(outputChan chan *ProcessJSON) {
 // Supervise all registered processes and wait for them to finish.
 func (ovr *Overseer) SuperviseAll() {
 	if ovr.isRunning() {
-		log.Error("Supervise all is already running")
+		log.Error("SuperviseAll is already running", Attrs{"f": "SuperviseAll"})
 		return
 	}
 	if ovr.isStopping() {
-		log.Info("Overseer is stopping")
+		log.Error("Overseer is stopping", Attrs{"f": "SuperviseAll"})
 		return
 	}
 
@@ -339,12 +339,9 @@ func (ovr *Overseer) Supervise(id string) {
 
 	for {
 		if ovr.isStopping() {
+			log.Info("Overseer is stopping", Attrs{"f": "Supervise"})
 			break
 		}
-		if !c.IsInitialState() {
-			break
-		}
-
 		if delayStart > 0 {
 			time.Sleep(time.Duration(delayStart) * time.Millisecond)
 		}
@@ -432,6 +429,7 @@ func (ovr *Overseer) Supervise(id string) {
 		}
 
 		if ovr.isStopping() {
+			log.Info("Overseer is stopping", Attrs{"f": "Supervise"})
 			break
 		}
 
@@ -468,7 +466,9 @@ func (ovr *Overseer) StopAll() {
 		ovr.Stop(id)
 	}
 
+	time.Sleep(timeUnit)
 	log.Info("All procs shutdown")
+	ovr.setState(IDLE)
 }
 
 func (ovr *Overseer) isRunning() bool {

@@ -25,8 +25,7 @@ func main() {
 
 	// Capture status updates from the command
 	go func() {
-		for {
-			state := <-statusFeed
+		for state := range statusFeed {
 			fmt.Printf("STATE: %v\n", state)
 		}
 	}()
