@@ -16,8 +16,8 @@
 //   )
 //
 //   func main() {
-//       // Create Cmd, buffered output
-//       envCmd := cmd.NewCmd("env", cmd.Options{Buffered: true})
+//       // Create a Cmd
+//       envCmd := cmd.NewCmd("env")
 //
 //       // Run and wait for Cmd to return Status
 //       status := <-envCmd.Start()
@@ -136,7 +136,7 @@ type Options struct {
 // The command is not started until Start is called.
 func NewCmd(name string, args ...interface{}) *Cmd {
 	var para []string
-	opts := Options{Buffered: false, Streaming: true}
+	var opts Options
 
 	for _, arg := range args {
 		switch arg.(type) {

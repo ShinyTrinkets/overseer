@@ -151,7 +151,7 @@ func (ovr *Overseer) ToJSON(id string) *ProcessJSON {
 // Add (register) a process, without starting it.
 func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 	var para []string
-	opts := Options{Buffered: false, Streaming: true}
+	var opts Options
 
 	for _, arg := range args {
 		switch arg.(type) {
