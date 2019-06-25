@@ -1,18 +1,19 @@
 package overseer
 
-// CmdState represents a state
-type CmdState uint
-
 const (
-	INITIAL   CmdState = iota
-	STARTING           = 10
-	RUNNING            = 20
-	STOPPING           = 30
-	INTERRUPT          = 40 // final state (used when stopped or signaled)
-	FINISHED           = 50 // final state (used then was a natural exit)
-	FATAL              = 60 // final state (used when was an error while starting)
-	UNKNOWN            = 99
+	INITIAL = iota
+	IDLE
+	STARTING
+	RUNNING
+	STOPPING
+	INTERRUPT // final state (used when stopped or signaled)
+	FINISHED  // final state (used then was a natural exit)
+	FATAL     // final state (used when was an error while starting)
+	// UNKNOWN ?
 )
+
+// CmdState represents a Cmd state
+type CmdState uint
 
 func (p CmdState) String() string {
 	switch p {
@@ -28,6 +29,24 @@ func (p CmdState) String() string {
 		return "interrupted"
 	case FINISHED:
 		return "finished"
+	case FATAL:
+		return "fatal"
+	default:
+		return "unknown"
+	}
+}
+
+// OvrState represents a Overseer state
+type OvrState uint
+
+func (p OvrState) String() string {
+	switch p {
+	case IDLE:
+		return "idle"
+	case RUNNING:
+		return "running"
+	case STOPPING:
+		return "stopping"
 	case FATAL:
 		return "fatal"
 	default:

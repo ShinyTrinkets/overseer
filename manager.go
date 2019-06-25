@@ -26,11 +26,11 @@ type (
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
-	sync.RWMutex
-	procs    map[string]*Cmd
-	watchers []chan *ProcessJSON
-	running  bool
-	stopping bool
+	*sync.Mutex
+	stateLock *sync.Mutex
+	procs     map[string]*Cmd
+	watchers  []chan *ProcessJSON
+	state     OvrState
 }
 
 // ProcessJSON public structure
@@ -76,7 +76,9 @@ func NewOverseer() *Overseer {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	ovr := &Overseer{
-		procs: make(map[string]*Cmd),
+		Mutex:     &sync.Mutex{},
+		stateLock: &sync.Mutex{},
+		procs:     make(map[string]*Cmd),
 	}
 	// Catch death signals and stop all child procs on exit
 	death := DEATH.NewDeath(syscall.SIGINT, syscall.SIGTERM)
@@ -269,8 +271,7 @@ func (ovr *Overseer) SuperviseAll() {
 	}
 
 	log.Info("Start supervise all")
-	ovr.setStopping(false)
-	ovr.setRunning(true)
+	ovr.setState(RUNNING)
 
 	// Launch Cmd. Lock is needed because Supervise deletes from the map of Cmds.
 	ovr.Lock()
@@ -299,8 +300,8 @@ func (ovr *Overseer) SuperviseAll() {
 		}
 
 		if allDone {
-			ovr.setRunning(false)
 			log.Info("All procs finished")
+			ovr.setState(IDLE)
 			break
 		}
 	}
@@ -458,7 +459,7 @@ func (ovr *Overseer) Supervise(id string) {
 
 // StopAll cycles and kills all child procs. Used when exiting the program.
 func (ovr *Overseer) StopAll() {
-	ovr.setStopping(true)
+	ovr.setState(STOPPING)
 
 	for id, c := range ovr.procs {
 		c.Lock()
@@ -471,25 +472,19 @@ func (ovr *Overseer) StopAll() {
 }
 
 func (ovr *Overseer) isRunning() bool {
-	ovr.Lock()
-	defer ovr.Unlock()
-	return ovr.running
-}
-
-func (ovr *Overseer) setRunning(val bool) {
-	ovr.Lock()
-	defer ovr.Unlock()
-	ovr.running = val
+	ovr.stateLock.Lock()
+	defer ovr.stateLock.Unlock()
+	return ovr.state == RUNNING
 }
 
 func (ovr *Overseer) isStopping() bool {
-	ovr.Lock()
-	defer ovr.Unlock()
-	return ovr.stopping
+	ovr.stateLock.Lock()
+	defer ovr.stateLock.Unlock()
+	return ovr.state == STOPPING
 }
 
-func (ovr *Overseer) setStopping(val bool) {
-	ovr.Lock()
-	defer ovr.Unlock()
-	ovr.stopping = val
+func (ovr *Overseer) setState(state OvrState) {
+	ovr.stateLock.Lock()
+	defer ovr.stateLock.Unlock()
+	ovr.state = state
 }

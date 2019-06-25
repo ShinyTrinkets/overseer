@@ -143,7 +143,7 @@ func TestOverseerSupervise(t *testing.T) {
 	json := ovr.ToJSON(id)
 	assert.Equal("finished", json.State)
 
-	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs: echo, sleep")
+	assert.Equal([]string{"echo", "sleep"}, ovr.ListAll())
 }
 
 func TestOverseerSuperviseAll(t *testing.T) {
@@ -160,8 +160,8 @@ func TestOverseerSuperviseAll(t *testing.T) {
 	id = "list"
 	ovr.Add(id, "ls", []string{"/usr/"})
 
-	// before supervise
-	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs")
+	// list before supervise
+	assert.Equal([]string{"echo", "list"}, ovr.ListAll())
 
 	stat = ovr.Status(id)
 	assert.Equal(-1, stat.Exit)
@@ -175,8 +175,8 @@ func TestOverseerSuperviseAll(t *testing.T) {
 
 	time.Sleep(timeUnit * 4)
 
-	// after supervise
-	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs")
+	// list after supervise
+	assert.Equal([]string{"echo", "list"}, ovr.ListAll())
 
 	stat = ovr.Status(id)
 	assert.Equal(0, stat.Exit)
