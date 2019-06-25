@@ -35,6 +35,9 @@ func TestState2(t *testing.T) {
 	s = STOPPING
 	equals(t, "stopping", s.String())
 
+	s = FATAL
+	equals(t, "fatal", s.String())
+
 	s = 99
 	equals(t, "unknown", s.String())
 }

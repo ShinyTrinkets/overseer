@@ -109,7 +109,7 @@ func TestOverseerSignalStop(t *testing.T) {
 	ovr := cmd.NewOverseer()
 
 	id := "ping"
-	opts := cmd.Options{Buffered: false, Streaming: false, DelayStart: 1}
+	opts := cmd.Options{DelayStart: 0}
 	ovr.Add(id, "ping", []string{"localhost"}, opts)
 
 	json := ovr.ToJSON(id)
@@ -125,6 +125,18 @@ func TestOverseerSignalStop(t *testing.T) {
 	assert.Equal("initial", json.State)
 
 	assert.Equal(1, len(ovr.ListAll()))
+
+	go ovr.Supervise(id)
+	time.Sleep(timeUnit)
+	assert.Nil(ovr.Signal(id, syscall.SIGINT))
+
+	go ovr.Supervise(id)
+	time.Sleep(timeUnit)
+	assert.Nil(ovr.Signal(id, syscall.SIGTERM))
+
+	go ovr.Supervise(id)
+	time.Sleep(timeUnit)
+	assert.Nil(ovr.Stop(id))
 }
 
 func TestOverseerSupervise(t *testing.T) {
