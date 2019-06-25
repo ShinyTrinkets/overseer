@@ -13,7 +13,10 @@
 
 > Simple process manager library.
 
-At the core of this library is the [os/exec.Cmd](https://golang.org/pkg/os/exec/#Cmd) from Go-lang and the first wrapper for that is the **Cmd struct**.<br/>
+
+* **Note**: The master branch is the development branch. To make sure you use the correct version, use the repository tags.
+
+At the heart of this library is the [os/exec.Cmd](https://golang.org/pkg/os/exec/#Cmd) from Go-lang and the first wrapper for that is the **Cmd struct**.<br/>
 The **Overseer struct** can supervise one or more Cmds running at the same time.<br/>
 You can safely run multiple Overseer instances at the same time.
 
