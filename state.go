@@ -13,7 +13,7 @@ const (
 )
 
 // CmdState represents a Cmd state
-type CmdState uint
+type CmdState uint8
 
 func (p CmdState) String() string {
 	switch p {
@@ -37,7 +37,7 @@ func (p CmdState) String() string {
 }
 
 // OvrState represents a Overseer state
-type OvrState uint
+type OvrState uint8
 
 func (p OvrState) String() string {
 	switch p {
