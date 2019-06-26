@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	cmd "github.com/ShinyTrinkets/overseer"
 )
@@ -34,12 +35,17 @@ func main() {
 	// If you don't capture them, they will be written into
 	// the overseer log to Info or Error.
 	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
 		for {
 			select {
 			case line := <-pingCmd.Stdout:
 				fmt.Println(line)
 			case line := <-pingCmd.Stderr:
 				fmt.Fprintln(os.Stderr, line)
+			case <-ticker.C:
+				if !ovr.IsRunning() {
+					fmt.Println("Closing Stdout and Stderr loop")
+				}
 			}
 		}
 	}()
@@ -48,5 +54,6 @@ func main() {
 	ovr.SuperviseAll()
 
 	// Even after the command is finished, you can still access detailed info
-	fmt.Println(ovr.ToJSON(id1))
+	time.Sleep(100 * time.Millisecond)
+	fmt.Println(ovr.Status(id1))
 }

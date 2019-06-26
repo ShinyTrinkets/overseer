@@ -255,11 +255,11 @@ func (ovr *Overseer) UnWatch(outputChan chan *ProcessJSON) {
 // SuperviseAll is the *main* function.
 // Supervise all registered processes and wait for them to finish.
 func (ovr *Overseer) SuperviseAll() {
-	if ovr.isRunning() {
+	if ovr.IsRunning() {
 		log.Error("SuperviseAll is already running", Attrs{"f": "SuperviseAll"})
 		return
 	}
-	if ovr.isStopping() {
+	if ovr.IsStopping() {
 		log.Error("Overseer is stopping", Attrs{"f": "SuperviseAll"})
 		return
 	}
@@ -267,38 +267,25 @@ func (ovr *Overseer) SuperviseAll() {
 	log.Info("Start supervise all")
 	ovr.setState(RUNNING)
 
+	var wg sync.WaitGroup
+
 	// Launch Cmd. Lock is needed because Supervise deletes from the map of Cmds.
 	ovr.Lock()
 	for id := range ovr.procs {
-		go ovr.Supervise(id)
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			ovr.Supervise(id)
+			time.Sleep(timeUnit)
+		}(id)
 	}
 	ovr.Unlock()
 
-	// Check all procs every tick
-	// NOTE: This should probably be implemented with a WaitGroup,
-	// for each Supervise() the counter goes up, and at the end it goes down
-	ticker := time.NewTicker(4 * timeUnit)
-	for range ticker.C {
-		if ovr.isStopping() {
-			log.Info("Stop supervise all")
-			break
-		}
+	// Wait for all Cmds to complete
+	wg.Wait()
 
-		allDone := true
-		for _, p := range ovr.procs {
-			if p.IsFinalState() {
-				continue // the process is dead, nothing to do
-			}
-			allDone = false // if at least 1 proc is running
-			break
-		}
-
-		if allDone {
-			log.Info("All procs finished")
-			ovr.setState(IDLE)
-			break
-		}
-	}
+	log.Info("All procs finished")
+	ovr.setState(IDLE)
 }
 
 // Supervise launches a process and restart it in case of failure.
@@ -332,7 +319,7 @@ func (ovr *Overseer) Supervise(id string) {
 	}
 
 	for {
-		if ovr.isStopping() {
+		if ovr.IsStopping() {
 			log.Info("Overseer is stopping", Attrs{"f": "Supervise"})
 			break
 		}
@@ -385,7 +372,7 @@ func (ovr *Overseer) Supervise(id string) {
 				for _, outputChan := range ovr.watchers {
 					outputChan <- info
 				}
-				if ovr.isStopping() || c.IsFinalState() {
+				if !ovr.IsRunning() || c.IsFinalState() {
 					break
 				}
 			}
@@ -404,11 +391,11 @@ func (ovr *Overseer) Supervise(id string) {
 				case line := <-c.Stderr:
 					log.Error(line)
 				default:
-					if ovr.isStopping() || c.IsFinalState() {
+					if !ovr.IsRunning() || c.IsFinalState() {
 						// log.Info("Close STDOUT and STDERR loop:", Attrs{"id": id})
 						return
 					}
-					time.Sleep(2 * timeUnit)
+					time.Sleep(timeUnit)
 				}
 			}
 		}(c)
@@ -422,7 +409,7 @@ func (ovr *Overseer) Supervise(id string) {
 			break
 		}
 
-		if ovr.isStopping() {
+		if ovr.IsStopping() {
 			log.Info("Overseer is stopping", Attrs{"f": "Supervise"})
 			break
 		}
@@ -465,13 +452,16 @@ func (ovr *Overseer) StopAll() {
 	ovr.setState(IDLE)
 }
 
-func (ovr *Overseer) isRunning() bool {
+// IsRunning returns True if SuperviseAll is running
+func (ovr *Overseer) IsRunning() bool {
 	ovr.stateLock.Lock()
 	defer ovr.stateLock.Unlock()
 	return ovr.state == RUNNING
 }
 
-func (ovr *Overseer) isStopping() bool {
+// IsStopping returns True if StopAll was called and the procs
+// are preparing to close
+func (ovr *Overseer) IsStopping() bool {
 	ovr.stateLock.Lock()
 	defer ovr.stateLock.Unlock()
 	return ovr.state == STOPPING

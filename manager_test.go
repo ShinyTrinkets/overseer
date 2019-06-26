@@ -495,7 +495,7 @@ func TestOverseerFinishRestart(t *testing.T) {
 		assert.Equal(-1, stat.ExitCode)
 		assert.Nil(stat.Error)
 
-		rng := []int{1, 2, 3, 4, 5}
+		rng := []int{1, 2, 3}
 		for range rng {
 			ovr.Supervise(id)
 			time.Sleep(timeUnit * 2)
