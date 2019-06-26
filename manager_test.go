@@ -39,7 +39,7 @@ func TestOverseerBasic(t *testing.T) {
 	time.Sleep(timeUnit)
 
 	stat := ovr.Status(id)
-	assert.Equal(0, stat.Exit)
+	assert.Equal(0, stat.ExitCode)
 	assert.True(stat.PID > 0)
 
 	id = "list"
@@ -49,7 +49,7 @@ func TestOverseerBasic(t *testing.T) {
 	time.Sleep(timeUnit)
 
 	stat = ovr.Status(id)
-	assert.Equal(0, stat.Exit)
+	assert.Equal(0, stat.ExitCode)
 	assert.True(stat.PID > 0)
 
 	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs: echo, list")
@@ -112,8 +112,8 @@ func TestOverseerSignalStop(t *testing.T) {
 	opts := cmd.Options{DelayStart: 0}
 	ovr.Add(id, "ping", []string{"localhost"}, opts)
 
-	json := ovr.ToJSON(id)
-	assert.Equal("initial", json.State)
+	stat := ovr.Status(id)
+	assert.Equal("initial", stat.State)
 
 	assert.Nil(ovr.Stop(id))
 	assert.Nil(ovr.Stop(id))
@@ -121,8 +121,8 @@ func TestOverseerSignalStop(t *testing.T) {
 	assert.Nil(ovr.Signal(id, syscall.SIGTERM))
 	assert.Nil(ovr.Signal(id, syscall.SIGINT))
 
-	json = ovr.ToJSON(id)
-	assert.Equal("initial", json.State)
+	stat = ovr.Status(id)
+	assert.Equal("initial", stat.State)
 
 	assert.Equal(1, len(ovr.ListAll()))
 
@@ -154,11 +154,9 @@ func TestOverseerSupervise(t *testing.T) {
 	ovr.Supervise(id) // To supervise sleep. How cool is that?
 
 	stat := ovr.Status(id)
-	assert.Equal(stat.Exit, 0, "Exit code should be 0")
+	assert.Equal(0, stat.ExitCode)
+	assert.Equal("finished", stat.State)
 	assert.Nil(stat.Error, "Error should be nil")
-
-	json := ovr.ToJSON(id)
-	assert.Equal("finished", json.State)
 
 	assert.Equal([]string{"echo", "sleep"}, ovr.ListAll())
 }
@@ -172,7 +170,7 @@ func TestOverseerSuperviseAll(t *testing.T) {
 	ovr.Add(id, "sleep", []string{"1"})
 
 	stat := ovr.Status(id)
-	assert.Equal(-1, stat.Exit)
+	assert.Equal(-1, stat.ExitCode)
 	assert.Equal(0, stat.PID)
 
 	id = "list"
@@ -182,7 +180,7 @@ func TestOverseerSuperviseAll(t *testing.T) {
 	assert.Equal([]string{"list", "sleep"}, ovr.ListAll())
 
 	stat = ovr.Status(id)
-	assert.Equal(-1, stat.Exit)
+	assert.Equal(-1, stat.ExitCode)
 	assert.Equal(0, stat.PID)
 
 	// ch1 := make(chan *cmd.ProcessJSON)
@@ -204,23 +202,20 @@ func TestOverseerSuperviseAll(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	time.Sleep(timeUnit)
 
-	json := ovr.ToJSON(id)
-	assert.Equal("finished", json.State)
-
 	// list after supervise
 	assert.Equal([]string{"list", "sleep"}, ovr.ListAll())
 
-	json = ovr.ToJSON(id)
-	assert.Equal(0, json.ExitCode)
-	assert.NotEqual(0, json.PID)
-	assert.Equal("finished", json.State)
-	pid1 := json.PID
+	stat = ovr.Status(id)
+	assert.NotEqual(0, stat.PID)
+	assert.Equal(0, stat.ExitCode)
+	assert.Equal("finished", stat.State)
+	pid1 := stat.PID
 
 	// check that SuperviseAll can be run again
 	ovr.SuperviseAll()
 
-	json = ovr.ToJSON(id)
-	pid2 := json.PID
+	stat = ovr.Status(id)
+	pid2 := stat.PID
 
 	assert.NotEqual(pid1, pid2)
 }
@@ -238,22 +233,22 @@ func TestOverseerSleep(t *testing.T) {
 	// can't remove while it's running
 	assert.False(ovr.Remove(id))
 
-	json := ovr.ToJSON(id)
+	stat := ovr.Status(id)
 	// JSON status should contain the same info
-	assert.Equal("running", json.State)
-	assert.Equal(-1, json.ExitCode)
-	assert.NotEqual(0, json.PID)
-	assert.Nil(json.Error)
+	assert.Equal("running", stat.State)
+	assert.Equal(-1, stat.ExitCode)
+	assert.NotEqual(0, stat.PID)
+	assert.Nil(stat.Error)
 
 	// success kill
 	assert.Nil(ovr.Signal(id, syscall.SIGKILL))
 	time.Sleep(timeUnit)
 
 	// proc was killed
-	json = ovr.ToJSON(id)
-	assert.Equal("interrupted", json.State)
-	assert.Equal(-1, json.ExitCode)
-	assert.NotNil(json.Error)
+	stat = ovr.Status(id)
+	assert.Equal("interrupted", stat.State)
+	assert.Equal(-1, stat.ExitCode)
+	assert.NotNil(stat.Error)
 
 	// can remove now
 	assert.True(ovr.Remove(id))
@@ -282,15 +277,10 @@ func TestOverseerInvalidProcs(t *testing.T) {
 	ovr.Supervise(id)
 
 	stat := ovr.Status(id)
-	json := ovr.ToJSON(id)
 
-	assert.Equal(stat.Exit, -1, "Exit code should be negative")
+	assert.Equal(-1, stat.ExitCode, "Exit code should be negative")
 	assert.NotEqual(stat.Error, nil, "Error shouldn't be nil")
-	assert.Equal("fatal", json.State)
-	// JSON status should contain the same info
-	assert.Equal(stat.Exit, json.ExitCode)
-	assert.Equal(stat.Error, json.Error)
-	assert.Equal(stat.PID, json.PID)
+	assert.Equal("fatal", stat.State)
 
 	// try to stop a dead process
 	assert.Nil(ovr.Stop(id))
@@ -304,13 +294,12 @@ func TestOverseerInvalidProcs(t *testing.T) {
 	ovr.Supervise(id)
 
 	stat = ovr.Status(id)
-	json = ovr.ToJSON(id)
 
 	// LS returns a positive code when given a wrong path,
 	// but the execution of the command overall is a success
-	assert.True(stat.Exit > 0, "Exit code should be positive")
+	assert.True(stat.ExitCode > 0, "Exit code should be positive")
 	assert.Nil(stat.Error, "Error should be nil")
-	assert.Equal("finished", json.State)
+	assert.Equal("finished", stat.State)
 }
 
 func TestOverseerInvalidParams(t *testing.T) {
@@ -380,8 +369,8 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 	ovr.Add(id, "ls", []string{"-la"})
 	ovr.SuperviseAll()
 
-	json := ovr.ToJSON(id)
-	assert.Equal("finished", json.State)
+	stat := ovr.Status(id)
+	assert.Equal("finished", stat.State)
 
 	lock.Lock()
 	assert.Equal(6, results.Len())
@@ -422,8 +411,8 @@ func TestOverseersMany(t *testing.T) {
 		ovr.StopAll()
 		time.Sleep(timeUnit * 2)
 
-		json := ovr.ToJSON(id)
-		assert.Equal("interrupted", json.State)
+		stat := ovr.Status(id)
+		assert.Equal("interrupted", stat.State)
 	}
 }
 
@@ -444,10 +433,10 @@ func TestOverseersExit1(t *testing.T) {
 
 		ovr.Supervise(id)
 
-		json := ovr.ToJSON(id)
-		assert.Equal(1, json.ExitCode)
-		assert.Equal(nil, json.Error)
-		assert.Equal("finished", json.State)
+		stat := ovr.Status(id)
+		assert.Equal(1, stat.ExitCode)
+		assert.Equal(nil, stat.Error)
+		assert.Equal("finished", stat.State)
 	}
 }
 
@@ -465,10 +454,10 @@ func TestOverseerKillRestart(t *testing.T) {
 		id := "sleep1"
 		ovr.Add(id, "sleep", opt, []string{"10"})
 
-		json := ovr.ToJSON(id)
-		assert.Equal("initial", json.State)
-		assert.Equal(-1, json.ExitCode)
-		assert.Nil(json.Error)
+		stat := ovr.Status(id)
+		assert.Equal("initial", stat.State)
+		assert.Equal(-1, stat.ExitCode)
+		assert.Nil(stat.Error)
 
 		rng := []int{1, 2, 3}
 		for range rng {
@@ -477,10 +466,10 @@ func TestOverseerKillRestart(t *testing.T) {
 			assert.Nil(ovr.Stop(id))
 			time.Sleep(timeUnit * 2)
 
-			json = ovr.ToJSON(id)
-			assert.Equal("interrupted", json.State)
-			assert.Equal(-1, json.ExitCode)
-			assert.NotNil(json.Error)
+			stat = ovr.Status(id)
+			assert.Equal("interrupted", stat.State)
+			assert.Equal(-1, stat.ExitCode)
+			assert.NotNil(stat.Error)
 		}
 		// ovr.StopAll()
 	}
@@ -501,10 +490,10 @@ func TestOverseerFinishRestart(t *testing.T) {
 		id := "ls1"
 		ovr.Add(id, "ls", opt, []string{"-la"})
 
-		json := ovr.ToJSON(id)
-		assert.Equal("initial", json.State)
-		assert.Equal(-1, json.ExitCode)
-		assert.Nil(json.Error)
+		stat := ovr.Status(id)
+		assert.Equal("initial", stat.State)
+		assert.Equal(-1, stat.ExitCode)
+		assert.Nil(stat.Error)
 
 		rng := []int{1, 2, 3, 4, 5}
 		for range rng {
@@ -512,10 +501,10 @@ func TestOverseerFinishRestart(t *testing.T) {
 			time.Sleep(timeUnit * 2)
 			assert.Nil(ovr.Stop(id))
 
-			json = ovr.ToJSON(id)
-			assert.Equal(0, json.ExitCode)
-			assert.Equal(nil, json.Error)
-			assert.Equal("finished", json.State)
+			stat = ovr.Status(id)
+			assert.Equal(0, stat.ExitCode)
+			assert.Equal(nil, stat.Error)
+			assert.Equal("finished", stat.State)
 		}
 		// ovr.StopAll()
 	}

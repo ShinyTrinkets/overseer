@@ -38,12 +38,12 @@ type ProcessJSON struct {
 	ID         string    `json:"id"`
 	Group      string    `json:"group"`
 	Cmd        string    `json:"cmd"`
+	Dir        string    `json:"dir"`
 	PID        int       `json:"PID"`
 	State      string    `json:"state"`
 	ExitCode   int       `json:"exitCode"` // exit code of process
 	Error      error     `json:"error"`    // Go error
 	StartTime  time.Time `json:"startTime"`
-	Dir        string    `json:"dir"`
 	DelayStart uint      `json:"delayStart"`
 	RetryTimes uint      `json:"retryTimes"`
 }
@@ -116,16 +116,10 @@ func (ovr *Overseer) HasProc(id string) bool {
 	return exists
 }
 
-// Status returns a child process status
-// (PID, Exit code, Error, Runtime seconds, Stdout, Stderr)
-func (ovr *Overseer) Status(id string) Status {
-	c := ovr.procs[id]
-	return c.Status()
-}
-
-// ToJSON returns a more detailed process status, ready to be converted to JSON.
+// Status returns a child process status, ready to be converted to JSON.
 // Use this after calling ListAll() or ListGroup()
-func (ovr *Overseer) ToJSON(id string) *ProcessJSON {
+// (PID, Exit code, Error, Runtime seconds, Stdout, Stderr)
+func (ovr *Overseer) Status(id string) *ProcessJSON {
 	ovr.Lock()
 	c := ovr.procs[id]
 	ovr.Unlock()
@@ -137,12 +131,12 @@ func (ovr *Overseer) ToJSON(id string) *ProcessJSON {
 		id,
 		c.Group,
 		cmdArgs,
+		c.Dir,
 		s.PID,
 		c.State.String(),
 		s.Exit,
 		s.Error,
 		startTime,
-		c.Dir,
 		c.DelayStart,
 		c.RetryTimes,
 	}
@@ -378,12 +372,12 @@ func (ovr *Overseer) Supervise(id string) {
 					id,
 					c.Group,
 					cmdArg,
+					c.Dir,
 					s.PID,
 					i.String(),
 					s.Exit,
 					s.Error,
 					startTime,
-					c.Dir,
 					c.DelayStart,
 					c.RetryTimes,
 				}
