@@ -350,8 +350,12 @@ func (c *Cmd) Status() Status {
 		// Still running
 		c.status.Runtime = time.Now().Sub(c.startTime).Seconds()
 		if c.buffered {
-			c.status.Stdout = c.stdout.Lines()
-			c.status.Stderr = c.stderr.Lines()
+			if c.stdout != nil {
+				c.status.Stdout = c.stdout.Lines()
+			}
+			if c.stderr != nil {
+				c.status.Stderr = c.stderr.Lines()
+			}
 		}
 	}
 
@@ -398,10 +402,12 @@ func (c *Cmd) run() {
 		cmd.Stderr = io.MultiWriter(NewOutputStream(c.Stderr), c.stderr)
 	} else if c.buffered {
 		// Buffered only
+		c.Lock()
 		c.stdout = NewOutputBuffer()
 		c.stderr = NewOutputBuffer()
 		cmd.Stdout = c.stdout
 		cmd.Stderr = c.stderr
+		c.Unlock()
 	} else if c.Stdout != nil {
 		// Streaming only
 		cmd.Stdout = NewOutputStream(c.Stdout)

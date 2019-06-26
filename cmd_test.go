@@ -237,11 +237,10 @@ func TestCmdOutput(t *testing.T) {
 	if err := tmpfile.Close(); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("temp file: %s", tmpfile.Name())
+	t.Logf("Temp File: %s", tmpfile.Name())
 	os.Remove(tmpfile.Name())
 
 	p := cmd.NewCmd("./testdata/touch-file-count", []string{tmpfile.Name()}, cmd.Options{Buffered: true})
-
 	p.Start()
 
 	touchFile := func(file string) {
@@ -255,6 +254,7 @@ func TestCmdOutput(t *testing.T) {
 
 	touchFile(tmpfile.Name())
 	s = p.Status()
+
 	stdout = []string{"1"}
 	if diffs := deep.Equal(s.Stdout, stdout); diffs != nil {
 		t.Log(s.Stdout)
