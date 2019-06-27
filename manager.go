@@ -289,7 +289,7 @@ func (ovr *Overseer) SuperviseAll() {
 }
 
 // Supervise launches a process and restart it in case of failure.
-func (ovr *Overseer) Supervise(id string) {
+func (ovr *Overseer) Supervise(id string) int {
 	ovr.Lock()
 	c := ovr.procs[id]
 	ovr.Unlock()
@@ -317,6 +317,8 @@ func (ovr *Overseer) Supervise(id string) {
 		Factor: 3,
 		Jitter: true,
 	}
+
+	var stat Status
 
 	for {
 		if ovr.IsStopping() {
@@ -401,7 +403,7 @@ func (ovr *Overseer) Supervise(id string) {
 		}(c)
 
 		// Block and wait for process to finish
-		stat := <-c.Start()
+		stat = <-c.Start()
 
 		// If the process didn't have any failures
 		// Exited normally, no need to retry
@@ -423,7 +425,6 @@ func (ovr *Overseer) Supervise(id string) {
 		if retryTimes < 1 {
 			log.Error("Process exited abnormally. Stopped. Err: %s",
 				stat.Error, Attrs{"id": id, "cmd": cmdArg})
-			c.Stop() // just to make sure the status is updated
 			break
 		} else {
 			log.Error("Process exited abnormally. Err: %s. Restarting [%d]. ",
@@ -431,9 +432,9 @@ func (ovr *Overseer) Supervise(id string) {
 		}
 	}
 
-	c.Stop()     // just to make sure the status is updated
 	bOff.Reset() // clean backoff
 	log.Info("Stop overseeing process:", Attrs{"id": id, "cmd": cmdArg})
+	return stat.Exit
 }
 
 // StopAll cycles and kills all child procs. Used when exiting the program.

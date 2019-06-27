@@ -454,50 +454,40 @@ func (c *Cmd) run() {
 	// //////////////////////////////////////////////////////////////////////
 	err := cmd.Wait()
 	now = time.Now()
+	exitCode := 0
+
+	// Set final status
+	c.Lock()
+	defer c.Unlock()
 
 	// Get exit code of the command. According to the manual, Wait() returns:
 	// "If the command fails to run or doesn't complete successfully, the error
 	// is of type *ExitError. Other error types may be returned for I/O problems."
-	exitCode := 0
-	if err != nil {
-		switch err.(type) {
-		case *exec.ExitError:
-			// This is the normal case which is not really an error. It's string
-			// representation is only "*exec.ExitError". It only means the cmd
-			// did not exit zero and caller should see ExitError.Stderr, which
-			// we already have. So first we'll have this as the real/underlying
-			// type, then discard err so status.Error doesn't contain a useless
-			// "*exec.ExitError". With the real type we can get the non-zero
-			// exit code and determine if the process was signaled, which yields
-			// a more specific error message, so we set err again in that case.
-			exiterr := err.(*exec.ExitError)
-			err = nil
-			if waitStatus, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				exitCode = waitStatus.ExitStatus() // -1 if signaled
-				if waitStatus.Signaled() {
-					c.Lock()
-					err = errors.New(exiterr.Error()) // "signal: terminated"
-					c.status.Runtime = now.Sub(c.startTime).Seconds()
-					c.status.StopTs = now.UnixNano()
-					c.status.Exit = exitCode
-					c.status.Error = err
-					c.setState(INTERRUPT)
-					c.Unlock()
-				}
+	if err != nil && fmt.Sprintf("%T", err) == "*exec.ExitError" {
+		// This is the normal case which is not really an error. It's string
+		// representation is only "*exec.ExitError". It only means the cmd
+		// did not exit zero and caller should see ExitError.Stderr, which
+		// we already have. So first we'll have this as the real/underlying
+		// type, then discard err so status.Error doesn't contain a useless
+		// "*exec.ExitError". With the real type we can get the non-zero
+		// exit code and determine if the process was signaled, which yields
+		// a more specific error message, so we set err again in that case.
+		exiterr := err.(*exec.ExitError)
+		err = nil
+		if waitStatus, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+			exitCode = waitStatus.ExitStatus() // -1 if signaled
+			if waitStatus.Signaled() {
+				err = errors.New(exiterr.Error()) // "signal: terminated"
+				c.setState(INTERRUPT)
 			}
-		default:
-			// I/O problem according to the manual ^. Don't change err.
 		}
 	}
 
-	// Set final status
-	c.Lock()
 	c.status.Runtime = now.Sub(c.startTime).Seconds()
 	c.status.StopTs = now.UnixNano()
 	c.status.Exit = exitCode
 	c.status.Error = err
 	c.setState(FINISHED)
-	c.Unlock()
 }
 
 // //////////////////////////////////////////////////////////////////////////
