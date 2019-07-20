@@ -61,6 +61,23 @@ func TestBoff4(t *testing.T) {
 	equals(t, b.Duration(), b.Max)
 }
 
+func TestBoff5(t *testing.T) {
+
+	b := &Backoff{
+		Min:    10 * time.Nanosecond,
+		Max:    30 * time.Second,
+		Factor: 0.5,
+	}
+
+	equals(t, b.Duration(), 10*time.Nanosecond)
+	equals(t, b.Duration(), 10*time.Nanosecond)
+	equals(t, b.Duration(), 10*time.Nanosecond)
+	equals(t, b.Duration(), 10*time.Nanosecond)
+	equals(t, b.Duration(), 10*time.Nanosecond)
+	b.Reset()
+	equals(t, b.Duration(), 10*time.Nanosecond)
+}
+
 func TestBoffForAttempt(t *testing.T) {
 	b := &Backoff{
 		Min:    100 * time.Millisecond,

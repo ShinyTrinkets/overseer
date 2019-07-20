@@ -305,9 +305,6 @@ func (ovr *Overseer) Supervise(id string) int {
 	log.Info("Start overseeing process:", Attrs{"id": id, "cmd": cmdArg})
 
 	jMax := delayStart
-	if delayStart < 1 {
-		delayStart = 1
-	}
 	if delayStart < 10 {
 		jMax = 10
 	}
@@ -441,7 +438,10 @@ func (ovr *Overseer) Supervise(id string) int {
 func (ovr *Overseer) StopAll() {
 	ovr.setState(STOPPING)
 
-	for id, c := range ovr.procs {
+	ovr.Lock()
+	procs := ovr.procs
+	ovr.Unlock()
+	for id, c := range procs {
 		c.Lock()
 		c.RetryTimes = 0 // Make sure the child doesn't restart
 		c.Unlock()
