@@ -21,18 +21,18 @@ The **Overseer struct** can supervise one or more Cmds running at the same time.
 You can safely run multiple Overseer instances at the same time.
 
 It's recommended to use Overseer, instead of Cmd directly.<br/>
-If you use Cmd directly, keep in mind that it is *one use only*. After starting a instance, it cannot be started again. However, you can Clone your instance and start the clone.<br/>
-The Supervise method from the Overseer does all of that for you.
+If you use Cmd directly, keep in mind that it is *one use only*. After starting a instance, it cannot be started again. However, you can `Clone` your instance and start the clone.<br/>
+The `Supervise` method from the Overseer does all of that for you.
 
-There are 3 states in the normal lifecycle of a proc: starting, running, finished.<br/>
-If the process is killed prematurely, the states are: starting, running, interrupted.<br/>
-If the process cannot start, the states are: starting, fatal.
+There are 3 states in the normal lifecycle of a proc: *starting, running, finished*.<br/>
+If the process is killed prematurely, the states are: *starting, running, interrupted*.<br/>
+If the process cannot start, the states are: *starting, fatal*.
 
 
 The useful methods are:
 
 * `NewOverseer()` - Returns a new instance of a process manager.
-* `Add(id string, args ...string)` - Register a proc, without starting it. The `id` must be unique.
+* `Add(id string, exec string, args ...interface{})` - Register a proc, without starting it. The `id` must be unique. The name of the executable is `exec`. The args of the executable are `args`.
 * `Remove(id string)` - Unregister a proc, only if it's not running. The `id` must be unique.
 * `SuperviseAll()` - This is *the main function*. Supervise all processes and block until they finish. This includes killing all the processes when the main program exits. The status of the running processes can be watched live with the `Watch()` function.
 * `Supervise(id string)` - Supervise one registered process and block until it finishes. This includes checking if the process was killed from the outside, delaying the start and restarting in case of failure (failure means the program has an exit code != 0 or it ran with errors).
