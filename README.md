@@ -37,7 +37,7 @@ The useful methods are:
 * `SuperviseAll()` - This is *the main function*. Supervise all processes and block until they finish. This includes killing all the processes when the main program exits. The status of the running processes can be watched live with the `Watch()` function.
 * `Supervise(id string)` - Supervise one registered process and block until it finishes. This includes checking if the process was killed from the outside, delaying the start and restarting in case of failure (failure means the program has an exit code != 0 or it ran with errors).
 * `Watch(outputChan chan *ProcessJSON)` - Subscribe to all state changes via the provided output channel. The channel will receive status changes for all the added procs, but you can easily identify the one your are interested in from the ID, Group, etc. Note that for each proc you will receive only 2 or 3 messages that represent all the possible states (eg: starting, running, finished).
-* `Unwatch(outputChan chan *ProcessJSON)` - Un-subscribe from the state changes, by un-registering the channel.
+* `UnWatch(outputChan chan *ProcessJSON)` - Un-subscribe from the state changes, by un-registering the channel.
 * `Stop(id string)` - Stops the process by sending its process group a SIGTERM signal.
 * `Signal(id string, sig syscall.Signal)` - Sends an OS signal to the process group.
 * `StopAll()` - Cycles and stops all processes by sending SIGTERM.
