@@ -165,10 +165,10 @@ func TestCmdStop(t *testing.T) {
 
 	expectStatus := cmd.Status{
 		Cmd:     "./testdata/count-and-sleep",
-		PID:     gotStatus.PID,                    // nondeterministic
-		Exit:    -1,                               // signaled by Stop
-		Error:   errors.New("signal: terminated"), // signaled by Stop
-		Runtime: gotStatus.Runtime,                // nondeterministic
+		PID:     gotStatus.PID,                // nondeterministic
+		Exit:    -1,                           // signaled by Stop
+		Error:   errors.New("signal: killed"), // signaled by Stop
+		Runtime: gotStatus.Runtime,            // nondeterministic
 		Stdout:  []string{"1"},
 		Stderr:  []string{},
 	}
