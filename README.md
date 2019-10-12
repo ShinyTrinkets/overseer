@@ -28,6 +28,10 @@ There are 3 states in the normal lifecycle of a proc: *starting, running, finish
 If the process is killed prematurely, the states are: *starting, running, interrupted*.<br/>
 If the process cannot start, the states are: *starting, fatal*.
 
+Setting up a logger is optional, but if you want to use it, it must be called before creating a new Overseer.<br/>
+By default, the logger is `DefaultLogger` from [ShinyTrinkets/meta-logger/default.go](https://github.com/ShinyTrinkets/meta-logger/blob/master/default.go).<br/>
+To disable the logger completely, you need to create a Logger interface (with functions Info and Error) that don't do anything.
+
 
 The useful methods are:
 
@@ -55,7 +59,7 @@ Highlights:
 * no race conditions
 
 
-For examples of usage, please check the [Examples](examples/) folder, the [manager tests](manager_test.go), or the [command line app](cmd/cmd.go).
+For examples of usage, please check the [Examples](examples/) folder, the [manager tests](manager_test.go), the [Overseer command line app](cmd/cmd.go), or the [Spinal app](https://github.com/ShinyTrinkets/spinal/blob/master/main.go).
 
 
 ## Similar libraries
