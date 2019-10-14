@@ -4,13 +4,14 @@ package overseer
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"os/signal"
 	"sort"
 	"sync"
 	"syscall"
 	"time"
 
 	ml "github.com/ShinyTrinkets/meta-logger"
-	DEATH "gopkg.in/vrecan/death.v3"
 )
 
 // Tick time unit, used when scanning the procs to see if they're alive.
@@ -80,11 +81,18 @@ func NewOverseer() *Overseer {
 		stateLock: &sync.Mutex{},
 		procs:     make(map[string]*Cmd),
 	}
+
+	sigChannel := make(chan os.Signal, 2)
 	// Catch death signals and stop all child procs on exit
-	death := DEATH.NewDeath(syscall.SIGINT, syscall.SIGTERM)
-	go death.WaitForDeathWithFunc(func() {
-		ovr.StopAll()
-	})
+	signal.Notify(sigChannel, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		// Catch all signals and possibly react different based on signal
+		for sig := range sigChannel {
+			log.Error("Received signal: %v!", Attrs{"sig": sig})
+			ovr.StopAll(false)
+		}
+	}()
+
 	return ovr
 }
 
@@ -147,6 +155,19 @@ func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 	var para []string
 	var opts Options
 
+	ovr.Lock()
+	defer ovr.Unlock()
+
+	_, exists := ovr.procs[id]
+	if exists {
+		log.Error("Cannot add process, it exists already!", Attrs{"id": id})
+		return nil
+	}
+	if exec == "" {
+		log.Error("Cannot add process, no Executable defined!", Attrs{"id": id})
+		return nil
+	}
+
 	for _, arg := range args {
 		switch arg.(type) {
 		case []string:
@@ -161,33 +182,21 @@ func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 		}
 	}
 
-	if exec == "" {
-		log.Error("Cannot add process, no Executable defined!", Attrs{"id": id})
-		return nil
-	}
-	_, exists := ovr.procs[id]
-	if exists {
-		log.Error("Cannot add process, it exists already!", Attrs{"id": id})
-		return nil
-	}
-
 	log.Info("Add process:", Attrs{"id": id, "name": exec, "args": para})
 	c := NewCmd(exec, para, opts)
-
-	ovr.Lock()
 	ovr.procs[id] = c
-	ovr.Unlock()
 	return c
 }
 
 // Remove (un-register) a process, if it's not running.
 func (ovr *Overseer) Remove(id string) bool {
+	ovr.Lock()
+	defer ovr.Unlock()
+
 	_, exists := ovr.procs[id]
 	if !exists {
 		return false
 	}
-	ovr.Lock()
-	defer ovr.Unlock()
 	c := ovr.procs[id]
 
 	if c.IsInitialState() || c.IsFinalState() {
@@ -294,9 +303,11 @@ func (ovr *Overseer) Supervise(id string) int {
 	c := ovr.procs[id]
 	ovr.Unlock()
 
+	c.Lock()
 	delayStart := c.DelayStart
 	retryTimes := c.RetryTimes
 	cmdArg := fmt.Sprint(c.Name, " ", c.Args)
+	c.Unlock()
 
 	// Overwrite the global log
 	// The STDOUT and STDERR of the process will also go into this log
@@ -435,7 +446,7 @@ func (ovr *Overseer) Supervise(id string) int {
 }
 
 // StopAll cycles and kills all child procs. Used when exiting the program.
-func (ovr *Overseer) StopAll() {
+func (ovr *Overseer) StopAll(kill bool) {
 	ovr.setState(STOPPING)
 
 	ovr.Lock()
@@ -445,7 +456,11 @@ func (ovr *Overseer) StopAll() {
 		c.Lock()
 		c.RetryTimes = 0 // Make sure the child doesn't restart
 		c.Unlock()
-		ovr.Stop(id)
+		if kill {
+			ovr.Signal(id, syscall.SIGKILL)
+		} else {
+			ovr.Stop(id)
+		}
 	}
 
 	time.Sleep(timeUnit)

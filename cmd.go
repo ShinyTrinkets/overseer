@@ -227,10 +227,7 @@ func (c *Cmd) setState(state CmdState) {
 func (c *Cmd) IsInitialState() bool {
 	c.stateLock.Lock()
 	defer c.stateLock.Unlock()
-	if c.State == INITIAL {
-		return true
-	}
-	return false
+	return c.State == INITIAL
 }
 
 // IsFinalState returns true if the Cmd is in a final state.
@@ -293,7 +290,7 @@ func (c *Cmd) Stop() error {
 	// Signal the process group (-pid), not just the process, so that the process
 	// and all its children are signaled. Else, child procs can keep running and
 	// keep the stdout/stderr fd open and cause cmd.Wait to hang.
-	return signal(-c.status.PID, os.Kill)
+	return sendSignal(-c.status.PID, syscall.SIGTERM)
 }
 
 // Signal sends OS signal to the process group.
@@ -310,17 +307,17 @@ func (c *Cmd) Signal(sig syscall.Signal) error {
 	}
 
 	// Signal the process group (-pid)
-	return signal(-c.status.PID, sig)
+	return sendSignal(-c.status.PID, sig)
 }
 
-func signal(pid int, signal os.Signal) error {
+func sendSignal(pid int, sig syscall.Signal) error {
 	proc, err := os.FindProcess(pid)
 
 	if err != nil {
 		return err
 	}
 
-	err = proc.Signal(signal)
+	err = proc.Signal(sig)
 
 	if err != nil {
 		return err

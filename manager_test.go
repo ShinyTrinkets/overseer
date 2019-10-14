@@ -56,7 +56,7 @@ func TestOverseerBasic(t *testing.T) {
 	assert.Equal(2, len(ovr.ListGroup("")), "Expected 2 procs: echo, list")
 
 	// Should not crash
-	ovr.StopAll()
+	ovr.StopAll(false)
 }
 
 func TestOverseerOptions(t *testing.T) {
@@ -163,6 +163,8 @@ func TestOverseerSupervise(t *testing.T) {
 
 func TestOverseerSuperviseAll(t *testing.T) {
 	// Test Supervise all
+	// Overseer HANGS FOREVER in this test
+
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -176,12 +178,12 @@ func TestOverseerSuperviseAll(t *testing.T) {
 	id = "list"
 	ovr.Add(id, "ls", []string{"/usr/"})
 
-	// list before supervise
-	assert.Equal([]string{"list", "sleep"}, ovr.ListAll())
-
 	stat = ovr.Status(id)
 	assert.Equal(-1, stat.ExitCode)
 	assert.Equal(0, stat.PID)
+
+	// list before supervise
+	assert.Equal([]string{"list", "sleep"}, ovr.ListAll())
 
 	// ch1 := make(chan *cmd.ProcessJSON)
 	// ovr.Watch(ch1)
@@ -191,7 +193,6 @@ func TestOverseerSuperviseAll(t *testing.T) {
 	// 	}
 	// }()
 
-	// block and wait for procs to finish
 	go ovr.SuperviseAll()
 	// next calls shouldn't do anything
 	go ovr.SuperviseAll()
@@ -199,8 +200,7 @@ func TestOverseerSuperviseAll(t *testing.T) {
 	ovr.SuperviseAll()
 	ovr.SuperviseAll()
 
-	time.Sleep(1 * time.Second)
-	time.Sleep(timeUnit)
+	time.Sleep(time.Second + timeUnit*2)
 
 	// list after supervise
 	assert.Equal([]string{"list", "sleep"}, ovr.ListAll())
@@ -319,6 +319,8 @@ func TestOverseerInvalidParams(t *testing.T) {
 }
 
 func TestOverseerWatchUnwatch(t *testing.T) {
+	// The purpose of this test is to check that
+	// watch/ un-watch works as expected
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -332,6 +334,7 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 
 	ch1 := make(chan *cmd.ProcessJSON)
 	ovr.Watch(ch1)
+	// un-subscribe from events
 	ovr.UnWatch(ch1)
 
 	// CH2 will receive events
@@ -340,6 +343,7 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 
 	ch3 := make(chan *cmd.ProcessJSON)
 	ovr.Watch(ch3)
+	// un-subscribe from events
 	ovr.UnWatch(ch3)
 
 	// CH4 will also receive events
@@ -385,7 +389,7 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 	// }
 }
 
-func TestOverseersMany(t *testing.T) {
+func TestOverseersManyInstances(t *testing.T) {
 	// The purpose of this test is to check that
 	// multiple Overseer instances can be run concurently
 	assert := assert.New(t)
@@ -408,7 +412,7 @@ func TestOverseersMany(t *testing.T) {
 
 		go ovr.SuperviseAll()
 		time.Sleep(timeUnit * 2)
-		ovr.StopAll()
+		ovr.StopAll(false)
 		time.Sleep(timeUnit * 2)
 
 		stat := ovr.Status(id)
