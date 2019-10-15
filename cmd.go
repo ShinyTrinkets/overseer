@@ -230,6 +230,13 @@ func (c *Cmd) IsInitialState() bool {
 	return c.State == INITIAL
 }
 
+// IsInitialState returns true if the Cmd is in the initial state.
+func (c *Cmd) IsRunningState() bool {
+	c.stateLock.Lock()
+	defer c.stateLock.Unlock()
+	return c.State == STARTING || c.State == RUNNING
+}
+
 // IsFinalState returns true if the Cmd is in a final state.
 // Final states are definitive and cannot be exited from.
 func (c *Cmd) IsFinalState() bool {

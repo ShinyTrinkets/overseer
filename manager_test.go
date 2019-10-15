@@ -193,11 +193,11 @@ func TestOverseerSuperviseAll(t *testing.T) {
 	// 	}
 	// }()
 
-	go ovr.SuperviseAll()
+	ovr.SuperviseAll()
 	// next calls shouldn't do anything
 	go ovr.SuperviseAll()
 	go ovr.SuperviseAll()
-	ovr.SuperviseAll()
+	go ovr.SuperviseAll()
 	ovr.SuperviseAll()
 
 	time.Sleep(time.Second + timeUnit*2)
@@ -392,6 +392,7 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 func TestOverseersManyInstances(t *testing.T) {
 	// The purpose of this test is to check that
 	// multiple Overseer instances can be run concurently
+	// Also check that StopAll kills the processes
 	assert := assert.New(t)
 	opts := cmd.Options{
 		Group: "A", Dir: "/",
@@ -399,7 +400,7 @@ func TestOverseersManyInstances(t *testing.T) {
 		DelayStart: 1, RetryTimes: 1,
 	}
 
-	rng := []int{10, 11, 12, 13, 14, 15}
+	rng := []int{10, 11, 12, 13, 14}
 	for _, nr := range rng {
 		ovr := cmd.NewOverseer()
 		assert.Equal(0, len(ovr.ListAll()))
@@ -417,6 +418,7 @@ func TestOverseersManyInstances(t *testing.T) {
 
 		stat := ovr.Status(id)
 		assert.Equal("interrupted", stat.State)
+		assert.NotEqual(0, stat.PID)
 	}
 }
 
@@ -475,7 +477,6 @@ func TestOverseerKillRestart(t *testing.T) {
 			assert.Equal(-1, stat.ExitCode)
 			assert.NotNil(stat.Error)
 		}
-		// ovr.StopAll()
 	}
 }
 
@@ -510,6 +511,6 @@ func TestOverseerFinishRestart(t *testing.T) {
 			assert.Equal(nil, stat.Error)
 			assert.Equal("finished", stat.State)
 		}
-		// ovr.StopAll()
+		ovr.StopAll(false)
 	}
 }

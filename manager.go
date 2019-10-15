@@ -2,6 +2,7 @@
 package overseer
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -27,9 +28,9 @@ type (
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
-	*sync.Mutex
-	stateLock *sync.Mutex
-	procs     map[string]*Cmd
+	access    *sync.RWMutex
+	stateLock *sync.RWMutex
+	procs     sync.Map // Will contain [string]*Cmd
 	watchers  []chan *ProcessJSON
 	state     OvrState
 }
@@ -77,9 +78,8 @@ func NewOverseer() *Overseer {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	ovr := &Overseer{
-		Mutex:     &sync.Mutex{},
-		stateLock: &sync.Mutex{},
-		procs:     make(map[string]*Cmd),
+		access:    &sync.RWMutex{},
+		stateLock: &sync.RWMutex{},
 	}
 
 	sigChannel := make(chan os.Signal, 2)
@@ -99,9 +99,10 @@ func NewOverseer() *Overseer {
 // ListAll returns the names of all the procs in alphabetic order.
 func (ovr *Overseer) ListAll() []string {
 	ids := []string{}
-	for id := range ovr.procs {
-		ids = append(ids, id)
-	}
+	ovr.procs.Range(func(id, c interface{}) bool {
+		ids = append(ids, id.(string))
+		return true
+	})
 	sort.Strings(ids)
 	return ids
 }
@@ -109,18 +110,19 @@ func (ovr *Overseer) ListAll() []string {
 // ListGroup returns the names of all the procs from a specific group.
 func (ovr *Overseer) ListGroup(group string) []string {
 	ids := []string{}
-	for id, c := range ovr.procs {
-		if c.Group == group {
-			ids = append(ids, id)
+	ovr.procs.Range(func(id, c interface{}) bool {
+		if c.(*Cmd).Group == group {
+			ids = append(ids, id.(string))
 		}
-	}
+		return true
+	})
 	sort.Strings(ids)
 	return ids
 }
 
 // HasProc checks if a proc has been added to the manager.
 func (ovr *Overseer) HasProc(id string) bool {
-	_, exists := ovr.procs[id]
+	_, exists := ovr.procs.Load(id)
 	return exists
 }
 
@@ -128,9 +130,12 @@ func (ovr *Overseer) HasProc(id string) bool {
 // Use this after calling ListAll() or ListGroup()
 // (PID, Exit code, Error, Runtime seconds, Stdout, Stderr)
 func (ovr *Overseer) Status(id string) *ProcessJSON {
-	ovr.Lock()
-	c := ovr.procs[id]
-	ovr.Unlock()
+	l, ok := ovr.procs.Load(id)
+	if !ok {
+		return &ProcessJSON{}
+	}
+
+	c := l.(*Cmd)
 	s := c.Status()
 
 	cmdArgs := fmt.Sprint(c.Name, " ", c.Args)
@@ -155,11 +160,10 @@ func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 	var para []string
 	var opts Options
 
-	ovr.Lock()
-	defer ovr.Unlock()
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
 
-	_, exists := ovr.procs[id]
-	if exists {
+	if ovr.HasProc(id) {
 		log.Error("Cannot add process, it exists already!", Attrs{"id": id})
 		return nil
 	}
@@ -184,24 +188,27 @@ func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 
 	log.Info("Add process:", Attrs{"id": id, "name": exec, "args": para})
 	c := NewCmd(exec, para, opts)
-	ovr.procs[id] = c
+	ovr.procs.Store(id, c)
 	return c
 }
 
 // Remove (un-register) a process, if it's not running.
 func (ovr *Overseer) Remove(id string) bool {
-	ovr.Lock()
-	defer ovr.Unlock()
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
 
-	_, exists := ovr.procs[id]
-	if !exists {
+	if !ovr.HasProc(id) {
 		return false
 	}
-	c := ovr.procs[id]
+	l, ok := ovr.procs.Load(id)
+	if !ok {
+		return false
+	}
+	c := l.(*Cmd)
 
 	if c.IsInitialState() || c.IsFinalState() {
 		log.Info("Rem process:", Attrs{"id": id})
-		delete(ovr.procs, id)
+		ovr.procs.Delete(id)
 		return true
 	}
 
@@ -212,9 +219,15 @@ func (ovr *Overseer) Remove(id string) bool {
 // Stop the process by sending its process group a SIGTERM signal.
 // The process can be started again, if needed.
 func (ovr *Overseer) Stop(id string) error {
-	ovr.Lock()
-	defer ovr.Unlock()
-	c := ovr.procs[id]
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
+
+	l, ok := ovr.procs.Load(id)
+	if !ok {
+		log.Error("Cannot find process to stop!", Attrs{"id": id})
+		return errors.New("invalid proc name")
+	}
+	c := l.(*Cmd)
 
 	if err := c.Stop(); err != nil {
 		log.Error("Cannot stop process:", Attrs{"id": id})
@@ -227,9 +240,15 @@ func (ovr *Overseer) Stop(id string) error {
 
 // Signal sends OS signal to the process group.
 func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
-	ovr.Lock()
-	defer ovr.Unlock()
-	c := ovr.procs[id]
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
+
+	l, ok := ovr.procs.Load(id)
+	if !ok {
+		log.Error("Cannot find process to signal!", Attrs{"id": id})
+		return errors.New("invalid proc name")
+	}
+	c := l.(*Cmd)
 
 	if err := c.Signal(sig); err != nil {
 		log.Error("Cannot signal process:", Attrs{"id": id, "sig": sig})
@@ -242,23 +261,23 @@ func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
 
 // Watch allows subscribing to state changes via provided output channel.
 func (ovr *Overseer) Watch(outputChan chan *ProcessJSON) {
-	ovr.Lock()
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
 	ovr.watchers = append(ovr.watchers, outputChan)
-	ovr.Unlock()
 }
 
 // UnWatch allows un-subscribing from state changes.
 func (ovr *Overseer) UnWatch(outputChan chan *ProcessJSON) {
 	index := -1
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
 	for i, outCh := range ovr.watchers {
 		if outCh == outputChan {
 			index = i
 			break
 		}
 	}
-	ovr.Lock()
 	ovr.watchers = append(ovr.watchers[:index], ovr.watchers[index+1:]...)
-	ovr.Unlock()
 }
 
 // SuperviseAll is the *main* function.
@@ -279,16 +298,15 @@ func (ovr *Overseer) SuperviseAll() {
 	var wg sync.WaitGroup
 
 	// Launch Cmd. Lock is needed because Supervise deletes from the map of Cmds.
-	ovr.Lock()
-	for id := range ovr.procs {
+	ovr.procs.Range(func(id, c interface{}) bool {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
 			ovr.Supervise(id)
 			time.Sleep(timeUnit)
-		}(id)
-	}
-	ovr.Unlock()
+		}(id.(string))
+		return true
+	})
 
 	// Wait for all Cmds to complete
 	wg.Wait()
@@ -299,9 +317,21 @@ func (ovr *Overseer) SuperviseAll() {
 
 // Supervise launches a process and restart it in case of failure.
 func (ovr *Overseer) Supervise(id string) int {
-	ovr.Lock()
-	c := ovr.procs[id]
-	ovr.Unlock()
+	ovr.access.Lock()
+	l, ok := ovr.procs.Load(id)
+	if !ok {
+		log.Error("Cannot find process to signal!", Attrs{"id": id})
+		ovr.access.Unlock()
+		return -1
+	}
+	c := l.(*Cmd)
+
+	if c.IsRunningState() {
+		log.Error("Process is already running!", Attrs{"id": id})
+		ovr.access.Unlock()
+		return -1
+	}
+	ovr.access.Unlock()
 
 	c.Lock()
 	delayStart := c.DelayStart
@@ -339,12 +369,12 @@ func (ovr *Overseer) Supervise(id string) int {
 
 		// Clone the old Cmd in case of restart
 		if c.IsFinalState() {
-			ovr.Lock()
-			delete(ovr.procs, id)
+			ovr.access.Lock()
+			ovr.procs.Delete(id)
 			// overwrite the top variable
 			c = c.Clone()
-			ovr.procs[id] = c
-			ovr.Unlock()
+			ovr.procs.Store(id, c)
+			ovr.access.Unlock()
 		}
 
 		c.Lock()
@@ -449,23 +479,24 @@ func (ovr *Overseer) Supervise(id string) int {
 func (ovr *Overseer) StopAll(kill bool) {
 	ovr.setState(STOPPING)
 
-	ovr.Lock()
-	procs := ovr.procs
-	ovr.Unlock()
-	for id, c := range procs {
+	ovr.procs.Range(func(id, l interface{}) bool {
+		c := l.(*Cmd)
 		c.Lock()
 		c.RetryTimes = 0 // Make sure the child doesn't restart
 		c.Unlock()
 		if kill {
-			ovr.Signal(id, syscall.SIGKILL)
+			ovr.Signal(id.(string), syscall.SIGKILL)
 		} else {
-			ovr.Stop(id)
+			ovr.Stop(id.(string))
 		}
-	}
+		return true
+	})
 
+	ovr.access.Lock()
 	time.Sleep(timeUnit)
 	log.Info("All procs shutdown")
 	ovr.setState(IDLE)
+	ovr.access.Unlock()
 }
 
 // IsRunning returns True if SuperviseAll is running
