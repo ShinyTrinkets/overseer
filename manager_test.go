@@ -57,6 +57,18 @@ func TestOverseerBasic(t *testing.T) {
 
 	// Should not crash
 	ovr.StopAll(false)
+	ovr.StopAll(true)
+}
+
+func TestOverseerNegative(t *testing.T) {
+	// Negative testing. Try functions with wrong params.
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	assert.False(ovr.Remove("x"))
+	assert.NotNil(ovr.Stop("x"))
+	assert.NotNil(ovr.Signal("x", syscall.SIGINT))
+	assert.Equal(ovr.Supervise("x"), -1)
 }
 
 func TestOverseerOptions(t *testing.T) {
@@ -415,6 +427,7 @@ func TestOverseersManyInstances(t *testing.T) {
 		time.Sleep(timeUnit * 2)
 		ovr.StopAll(false)
 		time.Sleep(timeUnit * 2)
+		ovr.StopAll(true)
 
 		stat := ovr.Status(id)
 		assert.Equal("interrupted", stat.State)

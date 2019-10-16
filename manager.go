@@ -197,9 +197,6 @@ func (ovr *Overseer) Remove(id string) bool {
 	ovr.access.Lock()
 	defer ovr.access.Unlock()
 
-	if !ovr.HasProc(id) {
-		return false
-	}
 	l, ok := ovr.procs.Load(id)
 	if !ok {
 		return false
