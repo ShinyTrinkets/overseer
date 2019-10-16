@@ -24,12 +24,12 @@ There are 3 states in the normal lifecycle of a proc: *starting, running, finish
 If the process is killed prematurely, the states are: *starting, running, interrupted*.<br/>
 If the process cannot start, the states are: *starting, fatal*.
 
+
+## Overseer API
+
 Setting up a logger is optional, but if you want to use it, it must be called before creating a new Overseer.<br/>
 By default, the logger is `DefaultLogger` from [ShinyTrinkets/meta-logger/default.go](https://github.com/ShinyTrinkets/meta-logger/blob/master/default.go).<br/>
 To disable the logger completely, you need to create a Logger interface (with functions Info and Error) that don't do anything.
-
-
-## Overseer API
 
 * `NewOverseer()` - Returns a new instance of a Overseer process manager.
 * `Add(id string, exec string, args ...interface{})` - Register a proc, without starting it. The `id` must be unique. The name of the executable is `exec`. The args of the executable are `args`.
