@@ -20,10 +20,6 @@ At the heart of this library is the [os/exec.Cmd](https://golang.org/pkg/os/exec
 The **Overseer struct** can supervise one or more Cmds running at the same time.<br/>
 You can safely run multiple Overseer instances at the same time.
 
-It's recommended to use Overseer, instead of Cmd directly.<br/>
-If you use Cmd directly, keep in mind that it is *one use only*. After starting a instance, it cannot be started again. However, you can `Clone` your instance and start the clone.<br/>
-The `Supervise` method from the Overseer does all of that for you.
-
 There are 3 states in the normal lifecycle of a proc: *starting, running, finished*.<br/>
 If the process is killed prematurely, the states are: *starting, running, interrupted*.<br/>
 If the process cannot start, the states are: *starting, fatal*.
@@ -33,9 +29,9 @@ By default, the logger is `DefaultLogger` from [ShinyTrinkets/meta-logger/defaul
 To disable the logger completely, you need to create a Logger interface (with functions Info and Error) that don't do anything.
 
 
-The useful methods are:
+## Overseer API
 
-* `NewOverseer()` - Returns a new instance of a process manager.
+* `NewOverseer()` - Returns a new instance of a Overseer process manager.
 * `Add(id string, exec string, args ...interface{})` - Register a proc, without starting it. The `id` must be unique. The name of the executable is `exec`. The args of the executable are `args`.
 * `Remove(id string)` - Unregister a proc, only if it's not running. The `id` must be unique.
 * `SuperviseAll()` - This is *the main function*. Supervise all processes and block until they finish. This includes killing all the processes when the main program exits. The status of the running processes can be watched live with the `Watch()` function.
@@ -44,10 +40,26 @@ The useful methods are:
 * `UnWatch(outputChan chan *ProcessJSON)` - Un-subscribe from the state changes, by un-registering the channel.
 * `Stop(id string)` - Stops the process by sending its process group a SIGTERM signal.
 * `Signal(id string, sig syscall.Signal)` - Sends an OS signal to the process group.
-* `StopAll()` - Cycles and stops all processes by sending SIGTERM.
+* `StopAll(kill bool)` - Cycles and stops all processes. If "kill" is true, all procs receive SIGTERM to allow a graceful shut down. If "kill" is true, all procs receive SIGKILL and they are killed immediately.
+
+## Cmd API
+
+It's recommended to use Overseer, instead of Cmd directly.<br/>
+If you use Cmd directly, keep in mind that it is *one use only*. After starting a instance, it cannot be started again. However, you can `Clone` your instance and start the clone.<br/>
+The `Supervise` method from the Overseer does all of that for you.
+
+* `NewCmd(name string, args ...interface{})` - Returns a new instance of Cmd.
+* `Clone()` - Clones a Cmd. All the options are copied, but the state of the original object is lost.
+* `Start()` - Starts the command and immediately returns a channel that the caller can use to receive the final Status of the command when it ends.
+* `Stop()` - Stops the command by sending its process group a SIGTERM signal.
+* `Signal(sig syscall.Signal)` - Sends an OS signal to the process group.
+* `Status()` - Returns the Status of the command at any time.
+* `IsInitialState()` - true if the Cmd is in initial state.
+* `IsRunningState()` - true if the Cmd is starting, or running.
+* `IsFinalState()` - true if the Cmd is in a final state.
 
 
-Highlights:
+## Project highlights
 
 * real-time status
 * real-time stdout and stderr

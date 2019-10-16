@@ -183,7 +183,7 @@ func NewCmd(name string, args ...interface{}) *Cmd {
 	return c
 }
 
-// Clone clones a Cmd. All the configs are transferred,
+// Clone clones a Cmd. All the options are copied,
 // but the state of the original object is lost.
 func (c *Cmd) Clone() *Cmd {
 	clone := NewCmd(
@@ -230,7 +230,7 @@ func (c *Cmd) IsInitialState() bool {
 	return c.State == INITIAL
 }
 
-// IsInitialState returns true if the Cmd is in the initial state.
+// IsRunningState returns true if the Cmd is starting, or running.
 func (c *Cmd) IsRunningState() bool {
 	c.stateLock.Lock()
 	defer c.stateLock.Unlock()
