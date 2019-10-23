@@ -369,7 +369,7 @@ func (c *Cmd) Status() Status {
 		}
 	} else {
 		// Still running
-		c.status.Runtime = time.Now().Sub(c.startTime).Seconds()
+		c.status.Runtime = time.Since(c.startTime).Seconds()
 		if c.buffered {
 			if c.stdout != nil {
 				c.status.Stdout = c.stdout.Lines()
