@@ -52,7 +52,7 @@ If you use Cmd directly, keep in mind that it is *one use only*. After starting 
 * `Start()` - Starts the command and immediately returns a channel that the caller can use to receive the final Status of the command when it ends. The function **can only be called once**.
 * `Stop()` - Stops the command by sending its process group a SIGTERM signal.
 * `Signal(sig syscall.Signal)` - Sends an OS signal to the process group.
-* `Status()` - Returns the Status of the command at any time.
+* `Status()` - Returns the Status of the command at any time. The Status struct contains: PID, Exit code, Error (if it's the case) Start and Stop timestamps, Runtime in seconds.
 * `IsInitialState()` - true if the Cmd is in initial state.
 * `IsRunningState()` - true if the Cmd is starting, or running.
 * `IsFinalState()` - true if the Cmd is in a final state.
