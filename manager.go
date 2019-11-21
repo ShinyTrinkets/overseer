@@ -140,13 +140,16 @@ func (ovr *Overseer) Status(id string) *ProcessJSON {
 
 	cmdArgs := fmt.Sprint(c.Name, " ", c.Args)
 	startTime := time.Unix(0, s.StartTs)
+	c.stateLock.Lock()
+	state := c.State.String()
+	c.stateLock.Unlock()
 	return &ProcessJSON{
 		id,
 		c.Group,
 		cmdArgs,
 		c.Dir,
 		s.PID,
-		c.State.String(),
+		state,
 		s.Exit,
 		s.Error,
 		startTime,

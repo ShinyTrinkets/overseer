@@ -173,6 +173,41 @@ func TestOverseerSupervise(t *testing.T) {
 	assert.Equal([]string{"echo", "sleep"}, ovr.ListAll())
 }
 
+func TestOverseerSignalStopRestart(t *testing.T) {
+	// Test stop in case of Rety > 1
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	id := "ping"
+	opts := cmd.Options{RetryTimes: 3}
+	ovr.Add(id, "ping", []string{"localhost"}, opts)
+
+	stat := ovr.Status(id)
+	assert.Equal("initial", stat.State)
+
+	assert.Nil(ovr.Stop(id))
+	assert.Nil(ovr.Signal(id, syscall.SIGTERM))
+
+	go ovr.Supervise(id)
+	time.Sleep(timeUnit)
+
+	assert.Nil(ovr.Stop(id))
+	stat = ovr.Status(id)
+	assert.Equal("stopping", stat.State)
+
+	time.Sleep(timeUnit)
+	stat = ovr.Status(id)
+	// should the cmd be interrupted, or running ??
+	// assert.Equal("interrupted", stat.State) // ??
+	assert.Equal("running", stat.State)
+
+	ovr.StopAll(true)
+
+	time.Sleep(timeUnit)
+	stat = ovr.Status(id)
+	assert.Equal("interrupted", stat.State)
+}
+
 func TestOverseerSuperviseAll(t *testing.T) {
 	// Test Supervise all
 	// Overseer HANGS FOREVER in this test
