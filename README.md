@@ -38,7 +38,7 @@ To disable the logger completely, you need to create a Logger interface (with fu
 * `Supervise(id string)` - Supervise one registered process and block until it finishes. This includes checking if the process was killed from the outside, delaying the start and restarting in case of failure (failure means the program has an exit code != 0 or it ran with errors). The function can be called again, after the process is finished.
 * `Watch(outputChan chan *ProcessJSON)` - Subscribe to all state changes via the provided output channel. The channel will receive status changes for all the added procs, but you can easily identify the one your are interested in from the ID, Group, etc. Note that for each proc you will receive only 2 or 3 messages that represent all the possible states (eg: starting, running, finished).
 * `UnWatch(outputChan chan *ProcessJSON)` - Un-subscribe from the state changes, by un-registering the channel.
-* `Stop(id string)` - Stops the process by sending its process group a SIGTERM signal.
+* `Stop(id string)` - Stops the process by sending its process group a SIGTERM signal and resets RetryTimes to 0 so the process doesn't restart.
 * `Signal(id string, sig syscall.Signal)` - Sends an OS signal to the process group.
 * `StopAll(kill bool)` - Cycles and stops all processes. If "kill" is true, all procs receive SIGTERM to allow a graceful shut down. If "kill" is true, all procs receive SIGKILL and they are killed immediately.
 
