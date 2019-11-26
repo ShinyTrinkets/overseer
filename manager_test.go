@@ -182,7 +182,7 @@ func TestOverseerSignalStopRestart(t *testing.T) {
 
 	id := "ping"
 	opts := cmd.Options{RetryTimes: 3}
-	c := ovr.Add(id, "ping", []string{"localhost"}, opts)
+	ovr.Add(id, "ping", []string{"localhost"}, opts)
 
 	stat := ovr.Status(id)
 	assert.Equal("initial", stat.State)
@@ -193,17 +193,25 @@ func TestOverseerSignalStopRestart(t *testing.T) {
 	go ovr.Supervise(id)
 	time.Sleep(timeUnit)
 
+	// Signal() doesn't reset retry times
+	assert.Nil(ovr.Signal(id, syscall.SIGTERM))
+	stat = ovr.Status(id)
+	assert.Equal("stopping", stat.State)
+
+	time.Sleep(timeUnit)
+	stat = ovr.Status(id)
+	assert.NotZero(stat.RetryTimes)
+	assert.Equal("running", stat.State)
+
+	// Stop() resets retry times
 	assert.Nil(ovr.Stop(id))
 	stat = ovr.Status(id)
 	assert.Equal("stopping", stat.State)
 
 	time.Sleep(timeUnit)
 	stat = ovr.Status(id)
+	assert.Zero(stat.RetryTimes)
 	assert.Equal("interrupted", stat.State)
-
-	c.Lock()
-	assert.Zero(c.RetryTimes)
-	c.Unlock()
 
 	ovr.StopAll(true)
 
