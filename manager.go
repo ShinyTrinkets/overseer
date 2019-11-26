@@ -367,6 +367,12 @@ func (ovr *Overseer) Supervise(id string) int {
 			time.Sleep(time.Duration(delayStart) * time.Millisecond)
 		}
 
+		// Was the retry times reset while the command was running?
+		if c.getRetryTimes() == 0 && retryTimes > 0 {
+			log.Error("Process is shutting down.", Attrs{"id": id, "cmd": cmdArg})
+			break
+		}
+
 		// Clone the old Cmd in case of restart
 		if c.IsFinalState() {
 			ovr.access.Lock()
@@ -406,7 +412,7 @@ func (ovr *Overseer) Supervise(id string) int {
 					s.Error,
 					startTime,
 					c.DelayStart,
-					c.RetryTimes,
+					c.getRetryTimes(),
 				}
 				// Push the status change
 				for _, outputChan := range ovr.watchers {

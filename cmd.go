@@ -248,6 +248,13 @@ func (c *Cmd) IsFinalState() bool {
 	return false
 }
 
+// getRetryTimes ...
+func (c *Cmd) getRetryTimes() uint {
+	c.Lock()
+	defer c.Unlock()
+	return c.RetryTimes
+}
+
 // Start starts the command and immediately returns a channel that the caller
 // can use to receive the final Status of the command when it ends. The caller
 // can start the command and wait like,
@@ -278,6 +285,7 @@ func (c *Cmd) Start() <-chan Status {
 }
 
 // Stop stops the command by sending its process group a SIGTERM signal.
+// Stop makes sure the command doesn't restart, by resetting the retry times.
 // Stop is idempotent. An error should only be returned in the rare case that
 // Stop is called immediately after the command ends but before Start can
 // update its internal state.
@@ -290,6 +298,9 @@ func (c *Cmd) Stop() error {
 	if c.statusChan == nil || c.IsInitialState() || c.IsFinalState() {
 		return nil
 	}
+
+	// Make sure the command doesn't restart
+	c.RetryTimes = 0
 
 	// Flag that command was stopped, it didn't complete.
 	c.setState(STOPPING)

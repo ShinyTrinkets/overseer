@@ -39,7 +39,7 @@ func TestOverseerBasic(t *testing.T) {
 	time.Sleep(timeUnit)
 
 	stat := ovr.Status(id)
-	assert.Equal(0, stat.ExitCode)
+	assert.Zero(stat.ExitCode)
 	assert.True(stat.PID > 0)
 
 	id = "list"
@@ -49,7 +49,7 @@ func TestOverseerBasic(t *testing.T) {
 	time.Sleep(timeUnit)
 
 	stat = ovr.Status(id)
-	assert.Equal(0, stat.ExitCode)
+	assert.Zero(stat.ExitCode)
 	assert.True(stat.PID > 0)
 
 	assert.Equal(2, len(ovr.ListAll()), "Expected 2 procs: echo, list")
@@ -99,7 +99,7 @@ func TestOverseerAddRemove(t *testing.T) {
 
 	rng := make([]int, 10)
 	for nr := range rng {
-		assert.Equal(0, len(ovr.ListAll()))
+		assert.Zero(len(ovr.ListAll()))
 
 		nr := strconv.Itoa(nr)
 		id := fmt.Sprintf("id%s", nr)
@@ -112,7 +112,7 @@ func TestOverseerAddRemove(t *testing.T) {
 		assert.Equal(1, len(ovr.ListAll()))
 
 		assert.True(ovr.Remove(id))
-		assert.Equal(0, len(ovr.ListAll()))
+		assert.Zero(len(ovr.ListAll()))
 	}
 }
 
@@ -175,12 +175,14 @@ func TestOverseerSupervise(t *testing.T) {
 
 func TestOverseerSignalStopRestart(t *testing.T) {
 	// Test stop in case of Rety > 1
+	// If the retry number is a positive number,
+	// the retry number is reset to 0 on cmd.Stop()
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
 	id := "ping"
 	opts := cmd.Options{RetryTimes: 3}
-	ovr.Add(id, "ping", []string{"localhost"}, opts)
+	c := ovr.Add(id, "ping", []string{"localhost"}, opts)
 
 	stat := ovr.Status(id)
 	assert.Equal("initial", stat.State)
@@ -197,9 +199,11 @@ func TestOverseerSignalStopRestart(t *testing.T) {
 
 	time.Sleep(timeUnit)
 	stat = ovr.Status(id)
-	// should the cmd be interrupted, or running ??
-	// assert.Equal("interrupted", stat.State) // ??
-	assert.Equal("running", stat.State)
+	assert.Equal("interrupted", stat.State)
+
+	c.Lock()
+	assert.Zero(c.RetryTimes)
+	c.Unlock()
 
 	ovr.StopAll(true)
 
