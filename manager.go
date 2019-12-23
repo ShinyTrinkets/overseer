@@ -341,7 +341,7 @@ func (ovr *Overseer) Supervise(id string) int {
 
 	// Overwrite the global log
 	// The STDOUT and STDERR of the process will also go into this log
-	log := ml.NewLogger("proc")
+	log := ml.NewLogger("cmd:" + id)
 
 	log.Info("Start overseeing process:", Attrs{"id": id, "cmd": cmdArg})
 
