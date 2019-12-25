@@ -32,6 +32,7 @@ type Overseer struct {
 	stateLock *sync.RWMutex
 	procs     sync.Map // Will contain [string]*Cmd
 	watchers  []chan *ProcessJSON
+	loggers   []chan *LogMsg
 	state     OvrState
 }
 
@@ -48,6 +49,11 @@ type ProcessJSON struct {
 	StartTime  time.Time `json:"startTime"`
 	DelayStart uint      `json:"delayStart"`
 	RetryTimes uint      `json:"retryTimes"`
+}
+
+type LogMsg struct {
+	Type uint8
+	Text string
 }
 
 // Global log instance
@@ -280,6 +286,27 @@ func (ovr *Overseer) UnWatch(outputChan chan *ProcessJSON) {
 	ovr.watchers = append(ovr.watchers[:index], ovr.watchers[index+1:]...)
 }
 
+// WatchLogs allows subscribing to log messages via provided output channel.
+func (ovr *Overseer) WatchLogs(logChan chan *LogMsg) {
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
+	ovr.loggers = append(ovr.loggers, logChan)
+}
+
+// UnWatchLogs allows un-subscribing from log messages.
+func (ovr *Overseer) UnWatchLogs(logChan chan *LogMsg) {
+	index := -1
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
+	for i, outCh := range ovr.loggers {
+		if outCh == logChan {
+			index = i
+			break
+		}
+	}
+	ovr.loggers = append(ovr.loggers[:index], ovr.loggers[index+1:]...)
+}
+
 // SuperviseAll is the *main* function.
 // Supervise all registered processes and wait for them to finish.
 func (ovr *Overseer) SuperviseAll() {
@@ -434,8 +461,18 @@ func (ovr *Overseer) Supervise(id string) int {
 				select {
 				case line := <-c.Stdout:
 					log.Info(line)
+					// Push the log message
+					// Stdout = 1
+					for _, logChan := range ovr.loggers {
+						logChan <- &LogMsg{1, line}
+					}
 				case line := <-c.Stderr:
 					log.Error(line)
+					// Push the log message
+					// Stderr = 2
+					for _, logChan := range ovr.loggers {
+						logChan <- &LogMsg{2, line}
+					}
 				default:
 					if !ovr.IsRunning() || c.IsFinalState() {
 						// log.Info("Close STDOUT and STDERR loop:", Attrs{"id": id})
