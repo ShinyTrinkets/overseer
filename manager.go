@@ -492,6 +492,10 @@ func (ovr *Overseer) Supervise(id string) int {
 			break
 		}
 
+		if c.State == FINISHED {
+			break
+		}
+
 		if ovr.IsStopping() {
 			log.Info("Overseer is stopping", Attrs{"f": "Supervise"})
 			break

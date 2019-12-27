@@ -57,6 +57,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/ShinyTrinkets/overseer/signals"
 )
 
 const defaultDelayStart uint = 25
@@ -308,7 +310,14 @@ func (c *Cmd) Stop() error {
 	// Signal the process group (-pid), not just the process, so that the process
 	// and all its children are signaled. Else, child procs can keep running and
 	// keep the stdout/stderr fd open and cause cmd.Wait to hang.
-	return sendSignal(-c.status.PID, syscall.SIGTERM)
+	// return sendSignal(-c.status.PID, syscall.SIGTERM)
+
+	proc, err := os.FindProcess(c.status.PID)
+	if err != nil {
+		return err
+	}
+
+	return signals.Kill(proc, syscall.SIGTERM, true)
 }
 
 // Signal sends OS signal to the process group.
@@ -325,24 +334,24 @@ func (c *Cmd) Signal(sig syscall.Signal) error {
 	}
 
 	// Signal the process group (-pid)
-	return sendSignal(-c.status.PID, sig)
+	// return sendSignal(-c.status.PID, sig)
+	return signals.SendSignal(-c.status.PID, sig)
 }
 
-func sendSignal(pid int, sig syscall.Signal) error {
-	proc, err := os.FindProcess(pid)
-
-	if err != nil {
-		return err
-	}
-
-	err = proc.Signal(sig)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
+// func sendSignal(pid int, sig syscall.Signal) error {
+// 	proc, err := os.FindProcess(pid)
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	err = proc.Signal(sig)
+//
+// 	if err != nil {
+// 		return err
+// 	}
+//
+// 	return nil
+// }
 
 // Status returns the Status of the command at any time. It is safe to call
 // concurrently by multiple goroutines.
