@@ -10,7 +10,7 @@ import (
 )
 
 func SendSignal(pid int, sig syscall.Signal) error {
-	proc, err := os.FindProcess(-pid)
+	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return err
 	}
