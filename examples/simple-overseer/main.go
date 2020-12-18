@@ -45,6 +45,7 @@ func main() {
 			case <-ticker.C:
 				if !ovr.IsRunning() {
 					fmt.Println("Closing Stdout and Stderr loop")
+					return //terminate go routine
 				}
 			}
 		}
@@ -54,6 +55,6 @@ func main() {
 	ovr.SuperviseAll()
 
 	// Even after the command is finished, you can still access detailed info
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	fmt.Println(ovr.Status(id1))
 }
