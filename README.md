@@ -10,6 +10,7 @@
 [![Build status][build-img]][build-url]
 [![Coverage report][cover-img]][cover-url]
 [![Go Report Card][goreport-img]][goreport-url]
+[![Go Reference][goref-img]][goref-url]
 
 > Simple process manager library.
 
@@ -97,3 +98,5 @@ Icon is made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> fro
 [cover-url]: https://codecov.io/gh/ShinyTrinkets/overseer
 [goreport-img]: https://goreportcard.com/badge/github.com/ShinyTrinkets/overseer
 [goreport-url]: https://goreportcard.com/report/github.com/ShinyTrinkets/overseer
+[goref-img]: https://pkg.go.dev/badge/github.com/ShinyTrinkets/overseer.svg
+[goref-url]: https://pkg.go.dev/github.com/ShinyTrinkets/overseer
