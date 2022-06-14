@@ -10,10 +10,13 @@ GOBUILD_LDFLAGS ?= \
 
 export GO111MODULE=on
 
-.PHONY: test clean build release
+.PHONY: test coverage clean build release
 
 test:
 	go test -v -race
+
+coverage:
+	go test -covermode=atomic -coverprofile=coverage.out
 
 build:
 	(cd cmd/ && go build -o ../overseer -ldflags "$(GOBUILD_LDFLAGS)")

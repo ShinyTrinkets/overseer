@@ -19,3 +19,10 @@ jobs:
       run: |
         go version
         make test
+
+    - name: Run coverage
+      run: |
+        make coverage
+
+    - name: Publish coverage
+      uses: codecov/codecov-action@v2
