@@ -92,9 +92,9 @@ Icon is made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> fro
 
 [project-img]: https://badgen.net/badge/%E2%AD%90/Trinkets/4B0082
 [project-url]: https://github.com/ShinyTrinkets
-[build-img]: https://badgen.net/travis/ShinyTrinkets/overseer
-[build-url]: https://travis-ci.org/ShinyTrinkets/overseer
-[cover-img]: https://codecov.io/gh/ShinyTrinkets/overseer/branch/master/graph/badge.svg
+[build-img]: https://github.com/ShinyTrinkets/overseer/workflows/Overseer/badge.svg
+[build-url]: https://github.com/ShinyTrinkets/overseer/actions
+[cover-img]: https://codecov.io/gh/ShinyTrinkets/overseer/branch/master/graph/badge.svg?token=FmNqq2cP71
 [cover-url]: https://codecov.io/gh/ShinyTrinkets/overseer
 [goreport-img]: https://goreportcard.com/badge/github.com/ShinyTrinkets/overseer
 [goreport-url]: https://goreportcard.com/report/github.com/ShinyTrinkets/overseer

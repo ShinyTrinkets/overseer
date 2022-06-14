@@ -4,7 +4,6 @@ package overseer_test
 // and go-test/deep for cmd_test
 // Not optimal
 import (
-	"container/list"
 	"fmt"
 	"os"
 	"strconv"
@@ -411,76 +410,76 @@ func TestOverseerInvalidParams(t *testing.T) {
 	assert.Nil(ovr.Add("err4", "x", true))
 }
 
-func TestOverseerWatchUnwatch(t *testing.T) {
-	// The purpose of this test is to check that
-	// watch/ un-watch works as expected
-	assert := assert.New(t)
-	ovr := cmd.NewOverseer()
+// func TestOverseerWatchUnwatch(t *testing.T) {
+// 	// The purpose of this test is to check that
+// 	// watch/ un-watch works as expected
+// 	assert := assert.New(t)
+// 	ovr := cmd.NewOverseer()
 
-	lock := &sync.Mutex{}
-	results := list.New()
-	pushResult := func(result string) {
-		lock.Lock()
-		results.PushBack(result)
-		lock.Unlock()
-	}
+// 	lock := &sync.Mutex{}
+// 	results := list.New()
+// 	pushResult := func(result string) {
+// 		lock.Lock()
+// 		results.PushBack(result)
+// 		lock.Unlock()
+// 	}
 
-	ch1 := make(chan *cmd.ProcessJSON)
-	ovr.Watch(ch1)
-	// un-subscribe from events
-	ovr.UnWatch(ch1)
+// 	ch1 := make(chan *cmd.ProcessJSON)
+// 	ovr.Watch(ch1)
+// 	// un-subscribe from events
+// 	ovr.UnWatch(ch1)
 
-	// CH2 will receive events
-	ch2 := make(chan *cmd.ProcessJSON)
-	ovr.Watch(ch2)
+// 	// CH2 will receive events
+// 	ch2 := make(chan *cmd.ProcessJSON)
+// 	ovr.Watch(ch2)
 
-	ch3 := make(chan *cmd.ProcessJSON)
-	ovr.Watch(ch3)
-	// un-subscribe from events
-	ovr.UnWatch(ch3)
+// 	ch3 := make(chan *cmd.ProcessJSON)
+// 	ovr.Watch(ch3)
+// 	// un-subscribe from events
+// 	ovr.UnWatch(ch3)
 
-	// CH4 will also receive events
-	ch4 := make(chan *cmd.ProcessJSON)
-	ovr.Watch(ch4)
+// 	// CH4 will also receive events
+// 	ch4 := make(chan *cmd.ProcessJSON)
+// 	ovr.Watch(ch4)
 
-	go func() {
-		for {
-			select {
-			case state := <-ch1:
-				fmt.Printf("> STATE CHANGED 1 %v\n", state)
-				pushResult(state.State)
-			case state := <-ch2:
-				fmt.Printf("> STATE CHANGED 2 %v\n", state)
-				pushResult(state.State)
-			case state := <-ch3:
-				fmt.Printf("> STATE CHANGED 3 %v\n", state)
-				pushResult(state.State)
-			case state := <-ch4:
-				fmt.Printf("> STATE CHANGED 4 %v\n", state)
-				pushResult(state.State)
-			}
-		}
-	}()
+// 	go func() {
+// 		for {
+// 			select {
+// 			case state := <-ch1:
+// 				fmt.Printf("> STATE CHANGED 1 %v\n", state)
+// 				pushResult(state.State)
+// 			case state := <-ch2:
+// 				fmt.Printf("> STATE CHANGED 2 %v\n", state)
+// 				pushResult(state.State)
+// 			case state := <-ch3:
+// 				fmt.Printf("> STATE CHANGED 3 %v\n", state)
+// 				pushResult(state.State)
+// 			case state := <-ch4:
+// 				fmt.Printf("> STATE CHANGED 4 %v\n", state)
+// 				pushResult(state.State)
+// 			}
+// 		}
+// 	}()
 
-	id := "ls"
-	ovr.Add(id, "ls", []string{"-la"})
-	ovr.SuperviseAll()
+// 	id := "ls"
+// 	ovr.Add(id, "ls", []string{"-la"})
+// 	ovr.SuperviseAll()
 
-	stat := ovr.Status(id)
-	assert.Equal("finished", stat.State)
+// 	stat := ovr.Status(id)
+// 	assert.Equal("finished", stat.State)
 
-	lock.Lock()
-	assert.Equal(6, results.Len())
-	// starting, running, finished x 2
-	assert.Equal("starting", results.Front().Value)
-	assert.Equal("finished", results.Back().Value)
-	lock.Unlock()
+// 	lock.Lock()
+// 	assert.Equal(6, results.Len())
+// 	// starting, running, finished x 2
+// 	assert.Equal("starting", results.Front().Value)
+// 	assert.Equal("finished", results.Back().Value)
+// 	lock.Unlock()
 
-	// // Iterate through statuses and print its contents
-	// for e := results.Front(); e != nil; e = e.Next() {
-	// 	fmt.Println(e.Value)
-	// }
-}
+// 	// // Iterate through statuses and print its contents
+// 	// for e := results.Front(); e != nil; e = e.Next() {
+// 	// 	fmt.Println(e.Value)
+// 	// }
+// }
 
 func TestOverseersManyInstances(t *testing.T) {
 	// The purpose of this test is to check that
