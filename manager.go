@@ -451,10 +451,10 @@ func (ovr *Overseer) Supervise(id string) int {
 					outputChan <- info
 				}
 				if !ovr.IsRunning() || c.IsFinalState() {
-					break
+					// log.Info("Close STATE loop:", Attrs{"id": id})
+					return
 				}
 			}
-			// log.Info("Close STATE loop:", Attrs{"id": id})
 		}(c)
 
 		// Async start
@@ -465,14 +465,18 @@ func (ovr *Overseer) Supervise(id string) int {
 			for {
 				select {
 				case line := <-c.Stdout:
-					log.Info(line)
-					for _, logChan := range ovr.loggers {
-						logChan <- &LogMsg{STDOUT, line}
+					if len(line) > 0 {
+						log.Info(line)
+						for _, logChan := range ovr.loggers {
+							logChan <- &LogMsg{STDOUT, line}
+						}
 					}
 				case line := <-c.Stderr:
-					log.Error(line)
-					for _, logChan := range ovr.loggers {
-						logChan <- &LogMsg{STDERR, line}
+					if len(line) > 0 {
+						log.Error(line)
+						for _, logChan := range ovr.loggers {
+							logChan <- &LogMsg{STDERR, line}
+						}
 					}
 				default:
 					if !ovr.IsRunning() || c.IsFinalState() {

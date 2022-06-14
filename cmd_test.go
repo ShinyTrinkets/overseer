@@ -41,7 +41,6 @@ func TestCmdClone(t *testing.T) {
 }
 
 func TestCmdOK(t *testing.T) {
-	assert := assert.New(t)
 	now := time.Now().Unix()
 
 	p := cmd.NewCmd("echo", []string{"foo"}, cmd.Options{Buffered: true})
@@ -58,16 +57,23 @@ func TestCmdOK(t *testing.T) {
 		Stdout:  []string{"foo"},
 		Stderr:  []string{},
 	}
-
-	assert.True(gotStatus.StartTs > now)
-	assert.True(gotStatus.StopTs > gotStatus.StartTs)
+	if gotStatus.StartTs < now {
+		t.Error("StartTs < now")
+	}
+	if gotStatus.StopTs < gotStatus.StartTs {
+		t.Error("StopTs < StartTs")
+	}
 	gotStatus.StartTs = 0
 	gotStatus.StopTs = 0
-
-	assert.Equal(gotStatus, expectStatus)
-	assert.True(gotStatus.PID > 0)
-	assert.True(gotStatus.Runtime > 0)
-	assert.True(p.State == cmd.FINISHED)
+	if diffs := deep.Equal(gotStatus, expectStatus); diffs != nil {
+		t.Error(diffs)
+	}
+	if gotStatus.PID < 0 {
+		t.Errorf("got PID %d, expected non-zero", gotStatus.PID)
+	}
+	if gotStatus.Runtime < 0 {
+		t.Errorf("got runtime %f, expected non-zero", gotStatus.Runtime)
+	}
 }
 
 func TestCmdNonzeroExit(t *testing.T) {
@@ -294,7 +300,7 @@ func TestCmdOutput(t *testing.T) {
 }
 
 func TestCmdNotFound(t *testing.T) {
-	p := cmd.NewCmd("cmd-does-not-exist", []string{}, cmd.Options{Buffered: true})
+	p := cmd.NewCmd("cmd-does-not-exist", cmd.Options{Buffered: true})
 	gotStatus := <-p.Start()
 	gotStatus.StartTs = 0
 	gotStatus.StopTs = 0
@@ -302,7 +308,7 @@ func TestCmdNotFound(t *testing.T) {
 		Cmd:     "cmd-does-not-exist",
 		PID:     0,
 		Exit:    -1,
-		Error:    &exec.Error{Name: "cmd-does-not-exist", Err: errors.New(`executable file not found in $PATH`)},
+		Error:   &exec.Error{Name: "cmd-does-not-exist", Err: errors.New(`executable file not found in $PATH`)},
 		Runtime: 0,
 		Stdout:  []string{},
 		Stderr:  []string{},

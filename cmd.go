@@ -52,7 +52,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -66,25 +65,26 @@ const defaultDelayStart uint = 25
 // To create a new Cmd, call NewCmd.
 type Cmd struct {
 	*sync.Mutex
-	stateLock  *sync.Mutex
-	Name       string
-	Group      string
-	Args       []string
-	Env        []string
-	Dir        string
-	DelayStart uint        // Nr of milli-seconds to delay the start (used by the manager)
-	RetryTimes uint        // Nr of times to restart on failure (used by the manager)
-	Stdout     chan string // streaming STDOUT if enabled, else nil (see Options)
-	Stderr     chan string // streaming STDERR if enabled, else nil (see Options)
-	State      CmdState    // The state of the cmd (stopped, started, etc)
-	startTime  time.Time
-	stdout     *OutputBuffer // low-level stdout buffering and streaming
-	stderr     *OutputBuffer // low-level stderr buffering and streaming
-	status     Status
-	statusChan chan Status   // nil until Start() called
-	changeChan chan CmdState // state changes feed
-	doneChan   chan struct{} // closed when done running
-	buffered   bool          // buffer STDOUT and STDERR to Status.Stdout and Std
+	stateLock    *sync.Mutex
+	Name         string
+	Group        string
+	Args         []string
+	Env          []string
+	Dir          string
+	DelayStart   uint        // Nr of milli-seconds to delay the start (used by the manager)
+	RetryTimes   uint        // Nr of times to restart on failure (used by the manager)
+	Stdout       chan string // streaming STDOUT if enabled, else nil (see Options)
+	Stderr       chan string // streaming STDERR if enabled, else nil (see Options)
+	State        CmdState    // The state of the cmd (stopped, started, etc)
+	startTime    time.Time
+	stdoutBuf    *OutputBuffer
+	stderrBuf    *OutputBuffer
+	stdoutStream *OutputStream
+	stderrStream *OutputStream
+	status       Status
+	statusChan   chan Status   // nil until Start() called
+	changeChan   chan CmdState // state changes feed
+	doneChan     chan struct{} // closed when done running
 }
 
 // Status represents the running status and consolidated return of a Cmd. It can
@@ -131,6 +131,12 @@ type Options struct {
 	// faster and more efficient than polling Cmd.Status. The caller must read both
 	// streaming channels, else lines are dropped silently.
 	Streaming bool
+
+	// LineBufferSize sets the size of the OutputStream line buffer. The default
+	// value DEFAULT_LINE_BUFFER_SIZE is usually sufficient, but if
+	// ErrLineBufferOverflow errors occur, try increasing the size with this
+	// field.
+	LineBufferSize uint
 }
 
 // NewCmd creates a new Cmd for the given command name and arguments.
@@ -172,14 +178,28 @@ func NewCmd(name string, args ...interface{}) *Cmd {
 		changeChan: make(chan CmdState, 5),
 		doneChan:   make(chan struct{}),
 	}
+
 	if opts.DelayStart > 0 {
 		c.DelayStart = opts.DelayStart
 	}
-	c.buffered = opts.Buffered
+	if opts.LineBufferSize == 0 {
+		opts.LineBufferSize = DEFAULT_LINE_BUFFER_SIZE
+	}
+
+	if opts.Buffered {
+		c.stdoutBuf = NewOutputBuffer()
+		c.stderrBuf = NewOutputBuffer()
+	}
 	if opts.Streaming {
 		c.Stdout = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
+		c.stdoutStream = NewOutputStream(c.Stdout)
+		c.stdoutStream.SetLineBufferSize(int(opts.LineBufferSize))
+
 		c.Stderr = make(chan string, DEFAULT_STREAM_CHAN_SIZE)
+		c.stderrStream = NewOutputStream(c.Stderr)
+		c.stderrStream.SetLineBufferSize(int(opts.LineBufferSize))
 	}
+
 	return c
 }
 
@@ -197,8 +217,8 @@ func (c *Cmd) Clone() *Cmd {
 			Env:        c.Env,
 			DelayStart: c.DelayStart,
 			RetryTimes: c.RetryTimes,
-			Buffered:   c.buffered,
-			Streaming:  c.Stdout != nil,
+			Buffered:   c.stdoutBuf != nil,
+			Streaming:  c.stdoutStream != nil,
 		},
 	)
 	return clone
@@ -310,7 +330,7 @@ func (c *Cmd) Stop() error {
 	// Signal the process group (-pid), not just the process, so that the process
 	// and all its children are signaled. Else, child procs can keep running and
 	// keep the stdout/stderr fd open and cause cmd.Wait to hang.
-	return sendSignal(-c.status.PID, syscall.SIGTERM)
+	return terminateProcess(c.status.PID)
 }
 
 // Signal sends OS signal to the process group.
@@ -327,23 +347,7 @@ func (c *Cmd) Signal(sig syscall.Signal) error {
 	}
 
 	// Signal the process group (-pid)
-	return sendSignal(-c.status.PID, sig)
-}
-
-func sendSignal(pid int, sig syscall.Signal) error {
-	proc, err := os.FindProcess(pid)
-
-	if err != nil {
-		return err
-	}
-
-	err = proc.Signal(sig)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return terminateProcess(c.status.PID)
 }
 
 // Status returns the Status of the command at any time. It is safe to call
@@ -374,22 +378,18 @@ func (c *Cmd) Status() Status {
 
 	if c.IsFinalState() {
 		// No longer running and the cmd buffer wasn't flushed
-		if c.buffered && c.status.Stdout == nil {
-			c.status.Stdout = c.stdout.Lines()
-			c.status.Stderr = c.stderr.Lines()
-			c.stdout = nil // release buffers
-			c.stderr = nil
+		if c.stdoutBuf != nil {
+			c.status.Stdout = c.stdoutBuf.Lines()
+			c.status.Stderr = c.stderrBuf.Lines()
+			c.stdoutBuf = nil // release buffers
+			c.stderrBuf = nil
 		}
 	} else {
 		// Still running
 		c.status.Runtime = time.Since(c.startTime).Seconds()
-		if c.buffered {
-			if c.stdout != nil {
-				c.status.Stdout = c.stdout.Lines()
-			}
-			if c.stderr != nil {
-				c.status.Stderr = c.stderr.Lines()
-			}
+		if c.stdoutBuf != nil {
+			c.status.Stdout = c.stdoutBuf.Lines()
+			c.status.Stderr = c.stderrBuf.Lines()
 		}
 	}
 
@@ -424,30 +424,39 @@ func (c *Cmd) run() {
 	// Platform-specific SysProcAttr management
 	setProcessGroupID(cmd)
 
-	// Write stdout and stderr to buffers that are safe to read while writing
-	// and don't cause a race condition.
-	if c.buffered && c.Stdout != nil {
-		// Buffered and streaming, create both and combine with io.MultiWriter
-		c.stdout = NewOutputBuffer()
-		c.stderr = NewOutputBuffer()
-		cmd.Stdout = io.MultiWriter(NewOutputStream(c.Stdout), c.stdout)
-		cmd.Stderr = io.MultiWriter(NewOutputStream(c.Stderr), c.stderr)
-	} else if c.buffered {
-		// Buffered only
-		c.Lock()
-		c.stdout = NewOutputBuffer()
-		c.stderr = NewOutputBuffer()
-		cmd.Stdout = c.stdout
-		cmd.Stderr = c.stderr
-		c.Unlock()
-	} else if c.Stdout != nil {
-		// Streaming only
-		cmd.Stdout = NewOutputStream(c.Stdout)
-		cmd.Stderr = NewOutputStream(c.Stderr)
-	} else {
-		// No output (effectively >/dev/null 2>&1)
+	// Set exec.Cmd.Stdout and .Stderr to our concurrent-safe stdout/stderr
+	// buffer, stream both, or neither
+	switch {
+	case c.stdoutBuf != nil && c.stdoutStream != nil: // buffer and stream
+		cmd.Stdout = io.MultiWriter(c.stdoutStream, c.stdoutBuf)
+		cmd.Stderr = io.MultiWriter(c.stderrStream, c.stderrBuf)
+	case c.stdoutBuf != nil: // buffer only
+		cmd.Stdout = c.stdoutBuf
+		cmd.Stderr = c.stderrBuf
+	case c.stdoutStream != nil: // stream only
+		cmd.Stdout = c.stdoutStream
+		cmd.Stderr = c.stderrStream
+	default: // no output (cmd >/dev/null 2>&1)
 		cmd.Stdout = nil
 		cmd.Stderr = nil
+	}
+
+	// Always close output streams. Do not do this after Wait because if Start
+	// fails and we return without closing these, it could deadlock the caller
+	// who's waiting for us to close them.
+	if c.stdoutStream != nil {
+		defer func() {
+			c.stdoutStream.Flush()
+			c.stderrStream.Flush()
+			// exec.Cmd.Wait has already waited for all output:
+			//   Otherwise, during the execution of the command a separate goroutine
+			//   reads from the process over a pipe and delivers that data to the
+			//   corresponding Writer. In this case, Wait does not complete until the
+			//   goroutine reaches EOF or encounters an error.
+			// from https://golang.org/pkg/os/exec/#Cmd
+			close(c.Stdout)
+			close(c.Stderr)
+		}()
 	}
 
 	// Set the runtime environment for the command as per os/exec.Cmd.
@@ -629,11 +638,11 @@ func (e ErrLineBufferOverflow) Error() string {
 // sent to a caller-provided channel.
 //
 // The caller must begin receiving before starting the Cmd. Write blocks on the
-// channel; the caller must always read the channel. The channel is not closed
-// by the OutputStream.
+// channel; the caller must always read the channel. The channel is closed when
+// the Cmd exits and all output has been sent.
 //
 // A Cmd in this package uses an OutputStream for both STDOUT and STDERR when
-// created by calling NewCmd and Options.Streaming is true. To use
+// created by calling NewCmdOptions and Options.Streaming is true. To use
 // OutputStream directly with a Go standard library os/exec.Command:
 //
 //   import "os/exec"
@@ -652,16 +661,7 @@ func (e ErrLineBufferOverflow) Error() string {
 //
 //
 // While runnableCmd is running, lines are sent to the channel as soon as they
-// are written and newline-terminated by the command. After the command finishes,
-// the caller should wait for the last lines to be sent:
-//
-//   for len(stdoutChan) > 0 {
-//       time.Sleep(10 * time.Millisecond)
-//   }
-//
-// Since the channel is not closed by the OutputStream, the two indications that
-// all lines have been sent and received are the command finishing and the
-// channel size being zero.
+// are written and newline-terminated by the command.
 type OutputStream struct {
 	streamChan chan string
 	bufSize    int
@@ -757,4 +757,12 @@ func (rw *OutputStream) Lines() <-chan string {
 func (rw *OutputStream) SetLineBufferSize(n int) {
 	rw.bufSize = n
 	rw.buf = make([]byte, rw.bufSize)
+}
+
+// Flush empties the buffer of its last line.
+func (rw *OutputStream) Flush() {
+	if rw.lastChar > 0 {
+		line := string(rw.buf[0:rw.lastChar])
+		rw.streamChan <- line
+	}
 }

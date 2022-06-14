@@ -39,13 +39,17 @@ func main() {
 		for {
 			select {
 			case line := <-pingCmd.Stdout:
-				fmt.Println(line)
+				if len(line) > 0 {
+					fmt.Println(line)
+				}
 			case line := <-pingCmd.Stderr:
-				fmt.Fprintln(os.Stderr, line)
+				if len(line) > 0 {
+					fmt.Fprintln(os.Stderr, line)
+				}
 			case <-ticker.C:
 				if !ovr.IsRunning() {
-					fmt.Println("Closing Stdout and Stderr loop")
-					return //terminate go routine
+					// fmt.Println("Closing Stdout and Stderr loop")
+					return // terminate go routine
 				}
 			}
 		}
