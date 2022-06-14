@@ -302,7 +302,7 @@ func TestCmdNotFound(t *testing.T) {
 		Cmd:     "cmd-does-not-exist",
 		PID:     0,
 		Exit:    -1,
-		Error:   errors.New(`exec: "cmd-does-not-exist": executable file not found in $PATH`),
+		Error:    &exec.Error{Name: "cmd-does-not-exist", Err: errors.New(`executable file not found in $PATH`)},
 		Runtime: 0,
 		Stdout:  []string{},
 		Stderr:  []string{},

@@ -18,6 +18,11 @@ import (
 // Tick time unit, used when scanning the procs to see if they're alive.
 const timeUnit = 100 * time.Millisecond
 
+const (
+	STDOUT uint8 = 1
+	STDERR uint8 = 2
+)
+
 type (
 	// Attrs is a type alias
 	Attrs = ml.Attrs
@@ -461,17 +466,13 @@ func (ovr *Overseer) Supervise(id string) int {
 				select {
 				case line := <-c.Stdout:
 					log.Info(line)
-					// Push the log message
-					// Stdout = 1
 					for _, logChan := range ovr.loggers {
-						logChan <- &LogMsg{1, line}
+						logChan <- &LogMsg{STDOUT, line}
 					}
 				case line := <-c.Stderr:
 					log.Error(line)
-					// Push the log message
-					// Stderr = 2
 					for _, logChan := range ovr.loggers {
-						logChan <- &LogMsg{2, line}
+						logChan <- &LogMsg{STDERR, line}
 					}
 				default:
 					if !ovr.IsRunning() || c.IsFinalState() {

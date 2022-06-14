@@ -183,8 +183,10 @@ func NewCmd(name string, args ...interface{}) *Cmd {
 	return c
 }
 
-// Clone clones a Cmd. All the options are copied,
+// Clone clones a Cmd. All the options are transferred,
 // but the state of the original object is lost.
+// Cmd is one-use only, so if you need to re-start a Cmd,
+// you need to Clone it.
 func (c *Cmd) Clone() *Cmd {
 	clone := NewCmd(
 		c.Name,
@@ -419,10 +421,8 @@ func (c *Cmd) run() {
 	// //////////////////////////////////////////////////////////////////////
 	cmd := exec.Command(c.Name, c.Args...)
 
-	// Set process group ID so the cmd and all its children become a new
-	// process group. This allows Stop to SIGTERM the cmd's process group
-	// without killing this process (i.e. this code here).
-	cmd.SysProcAttr = setSysProcAttr()
+	// Platform-specific SysProcAttr management
+	setProcessGroupID(cmd)
 
 	// Write stdout and stderr to buffers that are safe to read while writing
 	// and don't cause a race condition.
