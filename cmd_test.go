@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Credit: https://github.com/go-cmd/cmd
 
 package overseer_test
