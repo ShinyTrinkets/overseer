@@ -13,7 +13,7 @@ export GO111MODULE=on
 .PHONY: test coverage clean build release
 
 test:
-	go test -v -race
+	LOG=* go test -v -race
 
 coverage:
 	go test -covermode=atomic -coverprofile=coverage.out

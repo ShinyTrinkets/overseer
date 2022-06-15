@@ -34,6 +34,7 @@ type (
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
 	access    *sync.RWMutex
+	lockAll   *sync.RWMutex
 	stateLock *sync.RWMutex
 	procs     sync.Map // Will contain [string]*Cmd
 	watchers  []chan *ProcessJSON
@@ -90,6 +91,7 @@ func NewOverseer() *Overseer {
 
 	ovr := &Overseer{
 		access:    &sync.RWMutex{},
+		lockAll:   &sync.RWMutex{},
 		stateLock: &sync.RWMutex{},
 	}
 
@@ -315,14 +317,21 @@ func (ovr *Overseer) UnWatchLogs(logChan chan *LogMsg) {
 // SuperviseAll is the *main* function.
 // Supervise all registered processes and wait for them to finish.
 func (ovr *Overseer) SuperviseAll() {
+	ovr.lockAll.Lock()
+	defer ovr.lockAll.Unlock()
+
+	// ovr.access.Lock()
 	if ovr.IsRunning() {
 		log.Error("SuperviseAll is already running", Attrs{"f": "SuperviseAll"})
+		// ovr.access.Unlock()
 		return
 	}
 	if ovr.IsStopping() {
 		log.Error("Overseer is stopping", Attrs{"f": "SuperviseAll"})
+		// ovr.access.Unlock()
 		return
 	}
+	// ovr.access.Unlock()
 
 	log.Info("Start supervise all")
 	ovr.setState(RUNNING)
