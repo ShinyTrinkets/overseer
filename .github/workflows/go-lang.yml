@@ -20,9 +20,10 @@ jobs:
         go version
         make test
 
-    - name: Run coverage
-      run: |
-        make coverage
+    - if: ${{ matrix.os == 'ubuntu-latest' }}
+      name: Run coverage
+      run: make coverage
 
-    - name: Publish coverage
+    - if: ${{ matrix.os == 'ubuntu-latest' }}
+      name: Publish coverage
       uses: codecov/codecov-action@v2

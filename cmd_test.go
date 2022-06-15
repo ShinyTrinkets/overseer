@@ -640,6 +640,55 @@ func TestStreamingMultipleLines(t *testing.T) {
 	}
 }
 
+func TestStreamingMultipleLinesLastNotTerminated(t *testing.T) {
+	// If last line isn't \n terminated, go-cmd should flush it anyway
+	// https://github.com/go-cmd/cmd/pull/48
+	lines := make(chan string, 5)
+	out := cmd.NewOutputStream(lines)
+
+	// Quick side test: Lines() chan string should be the same chan string
+	// we created the object with
+	if out.Lines() != lines {
+		t.Errorf("Lines() does not return the given string chan")
+	}
+
+	// Write two short lines
+	input := "foo\nbar" // <- last line doesn't have \n
+	n, err := out.Write([]byte(input))
+	if n != len(input) {
+		t.Errorf("Write n = %d, expected %d", n, len(input))
+	}
+	if err != nil {
+		t.Errorf("got err '%v', expected nil", err)
+	}
+
+	// Get one line
+	var gotLine string
+	select {
+	case gotLine = <-lines:
+	default:
+		t.Fatal("blocked on <-lines")
+	}
+
+	// "foo" should be sent before "bar" because that was the input
+	if gotLine != "foo" {
+		t.Errorf("got line: '%s', expected 'foo'", gotLine)
+	}
+
+	out.Flush() // flush our output so go-cmd receives it
+
+	// Get next line
+	select {
+	case gotLine = <-lines:
+	default:
+		t.Fatal("blocked on <-lines")
+	}
+
+	if gotLine != "bar" {
+		t.Errorf("got line: '%s', expected 'bar'", gotLine)
+	}
+}
+
 func TestStreamingBlankLines(t *testing.T) {
 	lines := make(chan string, 5)
 	out := cmd.NewOutputStream(lines)
@@ -1075,6 +1124,68 @@ func TestCmdNoOutput(t *testing.T) {
 	if len(s.Stderr) != 0 {
 		t.Errorf("got stderr, expected no output: %v", s.Stderr)
 	}
+}
+
+func TestCmdLineBufferIncrease(t *testing.T) {
+	lineContent := cmd.DEFAULT_LINE_BUFFER_SIZE * 2
+	longLine := make([]byte, lineContent) // "AAA..."
+	for i := 0; i < lineContent; i++ {
+		longLine[i] = 'A'
+	}
+
+	tmpfile, err := ioutil.TempFile("", "cmd.TestCmdLineBufferIncrease")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.Remove(tmpfile.Name())
+	})
+	if _, err := tmpfile.Write(longLine); err != nil {
+		t.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	timeout := time.After(10 * time.Second) // test timeout
+
+	catStdout := cmd.NewCmd("./testdata/cat", []string{tmpfile.Name(), "1"},
+		cmd.Options{
+			Streaming:      true,
+			LineBufferSize: cmd.DEFAULT_LINE_BUFFER_SIZE * 2,
+		})
+
+	catStdoutStatus := catStdout.Start()
+
+	select {
+	case curLine := <-catStdout.Stdout:
+		t.Logf("got stdout bytes: %d", len(curLine))
+		if len(curLine) <= cmd.DEFAULT_LINE_BUFFER_SIZE {
+			t.Error("Unable to read more than default line buffer from stdout")
+		}
+	case <-timeout:
+		t.Fatal("timeout reading streaming output")
+	}
+	<-catStdoutStatus
+
+	catStderr := cmd.NewCmd("./testdata/cat", []string{tmpfile.Name(), "2"},
+		cmd.Options{
+			Streaming:      true,
+			LineBufferSize: cmd.DEFAULT_LINE_BUFFER_SIZE * 2,
+		})
+
+	catStderrStatus := catStderr.Start()
+
+	select {
+	case curLine := <-catStderr.Stderr:
+		t.Logf("got stderr bytes: %d", len(curLine))
+		if len(curLine) <= cmd.DEFAULT_LINE_BUFFER_SIZE {
+			t.Error("Unable to read more than default line buffer from stderr")
+		}
+	case <-timeout:
+		t.Fatal("timeout reading streaming output")
+	}
+	<-catStderrStatus
 }
 
 func TestCmdWrongArgs(t *testing.T) {
