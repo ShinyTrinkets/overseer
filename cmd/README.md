@@ -4,7 +4,7 @@ Small command line application that receives a YAML config file with processes a
 
 ### Usage
 
-> overseer start -c config.yml
+> LOG=* overseer start -c config.yml
 
 ### Options
 

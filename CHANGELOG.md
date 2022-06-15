@@ -1,5 +1,10 @@
 # Overseer changelog
 
+## v0.5
+* Using Go 1.17
+* Sync from latest github.com/go-cmd/cmd
+* Support for Darwin/macOS and basic support for Windows (manager tests are failing)
+
 ## v0.4
 * Breaking: cmd.Stop() now resets RetryTimes to 0
 
