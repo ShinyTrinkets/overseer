@@ -2,11 +2,12 @@ package overseer
 
 // Exponential-backoff implementation.
 // Credit: https://github.com/jpillora/backoff
-// Copyright (c) 2017 Jaime Pillora
+// Copyright (c) 2017+ Jaime Pillora
 
 import (
 	"math"
 	"math/rand"
+	"sync/atomic"
 	"time"
 )
 
@@ -17,19 +18,33 @@ import (
 // Backoff is not generally concurrent-safe, but the ForAttempt method can
 // be used concurrently.
 type Backoff struct {
-	//Factor is the multiplying factor for each increment step
-	attempt, Factor float64
-	//Jitter eases contention by randomizing backoff steps
+	attempt uint64
+
+	// Factor is the multiplying factor for each increment step.
+	//
+	// Defaults to 2.
+	Factor float64
+
+	// Jitter eases contention by randomizing backoff steps.
+	//
+	// Defaults to false.
 	Jitter bool
-	//Min and Max are the minimum and maximum values of the counter
-	Min, Max time.Duration
+
+	// Minimum value of the counter.
+	//
+	// Defaults to 100 milliseconds.
+	Min time.Duration
+
+	// Maximum value of the counter.
+	//
+	// Defaults to 10 seconds.
+	Max time.Duration
 }
 
 // Duration returns the duration for the current attempt before incrementing
 // the attempt counter. See ForAttempt.
 func (b *Backoff) Duration() time.Duration {
-	d := b.ForAttempt(b.attempt)
-	b.attempt++
+	d := b.ForAttempt(float64(atomic.AddUint64(&b.attempt, 1) - 1))
 	return d
 }
 
@@ -65,7 +80,7 @@ func (b *Backoff) ForAttempt(attempt float64) time.Duration {
 	if b.Jitter {
 		durf = rand.Float64()*(durf-minf) + minf
 	}
-	// ensure float64 won't overflow int64
+	// ensure float64 wont overflow int64
 	if durf > maxInt64 {
 		return max
 	}
@@ -82,10 +97,10 @@ func (b *Backoff) ForAttempt(attempt float64) time.Duration {
 
 // Reset restarts the current attempt counter at zero.
 func (b *Backoff) Reset() {
-	b.attempt = 0
+	atomic.StoreUint64(&b.attempt, 0)
 }
 
 // Attempt returns the current attempt counter value.
 func (b *Backoff) Attempt() float64 {
-	return b.attempt
+	return float64(atomic.LoadUint64(&b.attempt))
 }

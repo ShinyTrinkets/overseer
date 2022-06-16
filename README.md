@@ -30,16 +30,16 @@ If the process cannot start, the states are: *starting, fatal*.
 
 Setting up a logger is optional, but if you want to use it, it must be called before creating a new Overseer.<br/>
 By default, the logger is `DefaultLogger` from [ShinyTrinkets/meta-logger/default.go](https://github.com/ShinyTrinkets/meta-logger/blob/master/default.go).<br/>
-To disable the logger completely, you need to create a Logger interface (with functions Info and Error) that don't do anything.
+To disable the logger completely, you need to create a Logger interface, with empty functions for Info and Error, see [examples/simple-overseer](examples/simple-overseer/).
 
 * `NewOverseer()` - Returns a new instance of the Overseer process manager.
 * `Add(id string, exec string, args ...interface{})` - Register a proc, without starting it. The `id` must be unique. The name of the executable is `exec`. The args of the executable are `args`.
 * `Remove(id string)` - Unregister a proc, only if it's not running. The `id` must be unique.
-* `SuperviseAll()` - This is *the main function*. Supervise all registered processes and block until they finish. This includes killing all the processes when the main program exits. The function can be called again, after all the processes are finished. The status of the running processes can be watched live with the `Watch()` function.
+* `SuperviseAll()` - This is *the main function*. Supervise all registered processes and block until they finish. This includes killing all the processes when the main program exits. The function can be called again, after all the processes are finished. The status of the running processes can be watched live with the `WatchState(..)` function and the logs with `WatchLogs(..)`.
 * `Supervise(id string)` - Supervise one registered process and block until it finishes. This includes checking if the process was killed from the outside, delaying the start and restarting in case of failure (failure means the program has an exit code != 0 or it ran with errors). The function can be called again, after the process is finished.
 * `WatchState(outputChan chan *ProcessJSON)` - Subscribe to all state changes via the provided output channel. The channel will receive status changes for all the added procs, but you can easily identify the one your are interested in from the ID, Group, etc. Note that for each proc you will receive only 2 or 3 messages that represent all the possible states (eg: starting, running, finished).
 * `UnWatchState(outputChan chan *ProcessJSON)` - Un-subscribe from the state changes, by un-registering the channel.
-* `WatchLogs()` and `UnWatchLogs()` - Subscribe/ un-subscribe to/ from log messages using the provided channel.
+* `WatchLogs(logChan chan *LogMsg)` and `UnWatchLogs(logChan chan *LogMsg)` - Subscribe/ un-subscribe to/ from log messages using the provided channel.
 * `Stop(id string)` - Stops the process by sending its process group a SIGTERM signal and resets RetryTimes to 0 so the process doesn't restart.
 * `Signal(id string, sig syscall.Signal)` - Sends an OS signal to the process group.
 * `StopAll(kill bool)` - Cycles and stops all processes. If "kill" is false, all procs receive SIGTERM to allow a graceful shut down. If "kill" is true, all procs receive SIGKILL and they are killed immediately.
@@ -72,7 +72,7 @@ If you use Cmd directly, keep in mind that it is *one use only*. After starting 
 * no race conditions
 
 
-For examples of usage, please check the [Examples](examples/) folder, the [manager tests](manager_test.go), the [Overseer command line app](cmd/cmd.go), or the [Spinal app](https://github.com/ShinyTrinkets/spinal/blob/master/main.go).
+For examples of usage, please check the [Examples](examples/) folder, the [Overseer CLI app](cmd/cmd.go), the [manager tests](manager_test.go), or the [Spinal app](https://github.com/ShinyTrinkets/spinal/blob/master/main.go).
 
 
 ## Similar libraries

@@ -337,6 +337,8 @@ func TestOverseerWatchLogs(t *testing.T) {
 	}()
 
 	ovr.SuperviseAll()
+	// for some stupid reason, this wait is needed for CI
+	time.Sleep(timeUnit)
 
 	lock.Lock()
 	assert.True(strings.ContainsAny(messages, "ECHO!"))
