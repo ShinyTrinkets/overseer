@@ -1,9 +1,12 @@
 # Overseer changelog
 
 ## v0.5
+* Breaking: renamed Watch -> WatchStatus, UnWatch -> UnWatchStatus
 * Using Go 1.17
 * Sync from latest github.com/go-cmd/cmd
-* Support for Darwin/macOS and basic support for Windows (manager tests are failing)
+* Sync from latest github.com/jpillora/backoff
+* Support for Darwin/macOS and basic support for Windows
+    (all cmd tests are passing, but some manager tests are failing)
 
 ## v0.4
 * Breaking: cmd.Stop() now resets RetryTimes to 0
