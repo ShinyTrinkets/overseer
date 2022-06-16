@@ -1,7 +1,7 @@
 # Overseer changelog
 
 ## v0.5
-* Breaking: renamed Watch -> WatchStatus, UnWatch -> UnWatchStatus
+* Breaking: renamed ovr.Watch -> WatchStatus, ovr.UnWatch -> UnWatchStatus
 * Using Go 1.17
 * Sync from latest github.com/go-cmd/cmd
 * Sync from latest github.com/jpillora/backoff
@@ -12,13 +12,14 @@
 * Breaking: cmd.Stop() now resets RetryTimes to 0
 
 ## v0.3.4-pre
-* Breaking: StopAll() function requires one bool param
+* Breaking: ovr.StopAll() function requires one bool param
 * re-written Overseer procs list to use sync.Map instead of Map
 
 ## v0.3.3-pre
 * Basic Windows support
 
 ## v0.3.2
+* Breaking: ovr.ToJSON() is replaced with Status()
 * Fixed the Buffered:true option
 
 ## v0.3.1
