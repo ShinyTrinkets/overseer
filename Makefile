@@ -13,10 +13,10 @@ export GO111MODULE=on
 .PHONY: test coverage clean build release
 
 test:
-	LOG=* go test -v -race
+	go test -v -race
 
 coverage:
-	go test -covermode=atomic -coverprofile=coverage.out
+	go test -failfast -covermode=atomic -coverprofile=coverage.out
 
 build:
 	(cd cmd/ && go build -o ../overseer -ldflags "$(GOBUILD_LDFLAGS)")

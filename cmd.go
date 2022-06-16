@@ -66,11 +66,11 @@ const defaultDelayStart uint = 25
 type Cmd struct {
 	*sync.Mutex
 	stateLock    *sync.Mutex
-	Name         string
-	Group        string
-	Args         []string
-	Env          []string
-	Dir          string
+	Name         string      // Name of binary (command) to run; required!
+	Group        string      // Used by the manager (optional)
+	Args         []string    // Commands line arguments passed to the command (optional)
+	Env          []string    // Environment variables set before running the command (optional)
+	Dir          string      // Current working directory from which to run the command (optional)
 	DelayStart   uint        // Nr of milli-seconds to delay the start (used by the manager)
 	RetryTimes   uint        // Nr of times to restart on failure (used by the manager)
 	Stdout       chan string // streaming STDOUT if enabled, else nil (see Options)
@@ -364,9 +364,6 @@ func (c *Cmd) Signal(sig syscall.Signal) error {
 // The caller is responsible for tailing the buffered output if needed. Else,
 // consider using streaming output. When the command finishes, buffered output
 // is complete and final.
-//
-// Status.Runtime is updated while the command is running
-// and final when it finishes.
 func (c *Cmd) Status() Status {
 	c.Lock()
 	defer c.Unlock()

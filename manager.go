@@ -34,7 +34,7 @@ type (
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
 	access    *sync.RWMutex
-	lockAll   *sync.RWMutex
+	starLock  *sync.RWMutex
 	stateLock *sync.RWMutex
 	procs     sync.Map // Will contain [string]*Cmd
 	watchers  []chan *ProcessJSON
@@ -91,7 +91,7 @@ func NewOverseer() *Overseer {
 
 	ovr := &Overseer{
 		access:    &sync.RWMutex{},
-		lockAll:   &sync.RWMutex{},
+		starLock:  &sync.RWMutex{},
 		stateLock: &sync.RWMutex{},
 	}
 
@@ -176,17 +176,18 @@ func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 	var para []string
 	var opts Options
 
-	ovr.access.Lock()
-	defer ovr.access.Unlock()
-
+	ovr.access.RLock()
 	if ovr.HasProc(id) {
 		log.Error("Cannot add process, it exists already!", Attrs{"id": id})
+		ovr.access.RUnlock()
 		return nil
 	}
 	if exec == "" {
 		log.Error("Cannot add process, no Executable defined!", Attrs{"id": id})
+		ovr.access.RUnlock()
 		return nil
 	}
+	ovr.access.RUnlock()
 
 	for _, arg := range args {
 		switch arg.(type) {
@@ -201,6 +202,9 @@ func (ovr *Overseer) Add(id string, exec string, args ...interface{}) *Cmd {
 			return nil
 		}
 	}
+
+	ovr.access.Lock()
+	defer ovr.access.Unlock()
 
 	log.Info("Add process:", Attrs{"id": id, "name": exec, "args": para})
 	c := NewCmd(exec, para, opts)
@@ -253,8 +257,8 @@ func (ovr *Overseer) Stop(id string) error {
 
 // Signal sends OS signal to the process group.
 func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
-	ovr.access.Lock()
-	defer ovr.access.Unlock()
+	ovr.access.RLock()
+	defer ovr.access.RUnlock()
 
 	l, ok := ovr.procs.Load(id)
 	if !ok {
@@ -272,15 +276,15 @@ func (ovr *Overseer) Signal(id string, sig syscall.Signal) error {
 	return nil
 }
 
-// Watch allows subscribing to state changes via provided output channel.
-func (ovr *Overseer) Watch(outputChan chan *ProcessJSON) {
+// WatchState allows subscribing to state changes via provided output channel.
+func (ovr *Overseer) WatchState(outputChan chan *ProcessJSON) {
 	ovr.access.Lock()
 	defer ovr.access.Unlock()
 	ovr.watchers = append(ovr.watchers, outputChan)
 }
 
-// UnWatch allows un-subscribing from state changes.
-func (ovr *Overseer) UnWatch(outputChan chan *ProcessJSON) {
+// UnWatchState allows un-subscribing from state changes.
+func (ovr *Overseer) UnWatchState(outputChan chan *ProcessJSON) {
 	index := -1
 	ovr.access.Lock()
 	defer ovr.access.Unlock()
@@ -315,28 +319,27 @@ func (ovr *Overseer) UnWatchLogs(logChan chan *LogMsg) {
 }
 
 // SuperviseAll is the *main* function.
-// Supervise all registered processes and wait for them to finish.
+// It supervises all registered processes and waits for them to finish.
 func (ovr *Overseer) SuperviseAll() {
-	ovr.lockAll.Lock()
-	defer ovr.lockAll.Unlock()
-
-	// ovr.access.Lock()
+	ovr.access.RLock()
 	if ovr.IsRunning() {
 		log.Error("SuperviseAll is already running", Attrs{"f": "SuperviseAll"})
-		// ovr.access.Unlock()
+		ovr.access.RUnlock()
 		return
 	}
 	if ovr.IsStopping() {
 		log.Error("Overseer is stopping", Attrs{"f": "SuperviseAll"})
-		// ovr.access.Unlock()
+		ovr.access.RUnlock()
 		return
 	}
-	// ovr.access.Unlock()
+	ovr.access.RUnlock()
 
 	log.Info("Start supervise all")
 	ovr.setState(RUNNING)
 
 	var wg sync.WaitGroup
+	ovr.starLock.Lock()
+	defer ovr.starLock.Unlock()
 
 	// Launch Cmd. Lock is needed because Supervise deletes from the map of Cmds.
 	ovr.procs.Range(func(id, c interface{}) bool {
@@ -358,21 +361,21 @@ func (ovr *Overseer) SuperviseAll() {
 
 // Supervise launches a process and restart it in case of failure.
 func (ovr *Overseer) Supervise(id string) int {
-	ovr.access.Lock()
+	ovr.access.RLock()
 	l, ok := ovr.procs.Load(id)
 	if !ok {
 		log.Error("Cannot find process to signal!", Attrs{"id": id})
-		ovr.access.Unlock()
+		ovr.access.RUnlock()
 		return -1
 	}
 	c := l.(*Cmd)
 
 	if c.IsRunningState() {
 		log.Error("Process is already running!", Attrs{"id": id})
-		ovr.access.Unlock()
+		ovr.access.RUnlock()
 		return -1
 	}
-	ovr.access.Unlock()
+	ovr.access.RUnlock()
 
 	c.Lock()
 	delayStart := c.DelayStart
@@ -469,7 +472,7 @@ func (ovr *Overseer) Supervise(id string) int {
 		// Async start
 		c.Start()
 
-		// Process each line of STDOUT
+		// Process all log changes
 		go func(c *Cmd) {
 			for {
 				select {
@@ -551,7 +554,11 @@ func (ovr *Overseer) StopAll(kill bool) {
 
 	ovr.access.Lock()
 	time.Sleep(timeUnit)
-	log.Info("All procs shutdown")
+	if kill {
+		log.Info("All procs killed")
+	} else {
+		log.Info("All procs stopped")
+	}
 	ovr.setState(IDLE)
 	ovr.access.Unlock()
 }

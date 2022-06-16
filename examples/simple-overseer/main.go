@@ -2,13 +2,32 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	cmd "github.com/ShinyTrinkets/overseer"
 )
 
+const timeUnit = 100 * time.Millisecond
+
+// DummyLogger doesn't do anything
+// The default Overseer logger is: https://github.com/ShinyTrinkets/meta-logger/blob/master/default.go
+// A good production logger is: https://github.com/azer/logger/blob/master/logger.go
+type DummyLogger struct {
+	Name string
+}
+
+func (l *DummyLogger) Info(msg string, v ...interface{})  {}
+func (l *DummyLogger) Error(msg string, v ...interface{}) {}
+
 func main() {
+	// Setup the DummyLogger here, because we capture
+	// the logs above with WatchLogs()
+	cmd.SetupLogBuilder(func(name string) cmd.Logger {
+		return &DummyLogger{
+			Name: name,
+		}
+	})
+
 	ovr := cmd.NewOverseer()
 
 	// Disable output buffering, enable streaming
@@ -19,10 +38,10 @@ func main() {
 
 	// Add Cmd with options
 	id1 := "ping1"
-	pingCmd := ovr.Add(id1, "ping", []string{"localhost", "-c", "5"}, cmdOptions)
+	ovr.Add(id1, "ping", []string{"localhost", "-c", "5"}, cmdOptions)
 
 	statusFeed := make(chan *cmd.ProcessJSON)
-	ovr.Watch(statusFeed)
+	ovr.WatchState(statusFeed)
 
 	// Capture status updates from the command
 	go func() {
@@ -31,27 +50,15 @@ func main() {
 		}
 	}()
 
-	// Capture STDOUT and STDERR lines streaming from Cmd
-	// If you don't capture them, they will be written into
-	// the overseer log to Info or Error.
+	logFeed := make(chan *cmd.LogMsg)
+	ovr.WatchLogs(logFeed)
+
+	// Capture log messages streaming from Cmd
+	// The messages are already sent to log.Info or log.Error,
+	// this is just a place where you can process them
 	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
-		for {
-			select {
-			case line := <-pingCmd.Stdout:
-				if len(line) > 0 {
-					fmt.Println(line)
-				}
-			case line := <-pingCmd.Stderr:
-				if len(line) > 0 {
-					fmt.Fprintln(os.Stderr, line)
-				}
-			case <-ticker.C:
-				if !ovr.IsRunning() {
-					// fmt.Println("Closing Stdout and Stderr loop")
-					return // terminate go routine
-				}
-			}
+		for log := range logFeed {
+			fmt.Printf("LOG: %v\n", log)
 		}
 	}()
 
@@ -59,6 +66,6 @@ func main() {
 	ovr.SuperviseAll()
 
 	// Even after the command is finished, you can still access detailed info
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(timeUnit)
 	fmt.Println(ovr.Status(id1))
 }
