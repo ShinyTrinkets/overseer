@@ -559,12 +559,12 @@ func TestOverseerKillRestart(t *testing.T) {
 		assert.Equal(-1, stat.ExitCode)
 		assert.Nil(stat.Error)
 
-		rng := []int{1, 2, 3, 4}
+		rng := []int{1, 2, 3}
 		for range rng {
 			go ovr.Supervise(id)
 			time.Sleep(timeUnit)
 			assert.Nil(ovr.Stop(id))
-			time.Sleep(timeUnit)
+			time.Sleep(timeUnit * 2)
 
 			stat = ovr.Status(id)
 			assert.Equal("interrupted", stat.State)
@@ -597,7 +597,7 @@ func TestOverseerFinishRestart(t *testing.T) {
 		rng := []int{1, 2, 3}
 		for range rng {
 			ovr.Supervise(id)
-			time.Sleep(timeUnit * 2)
+			time.Sleep(timeUnit)
 			assert.Nil(ovr.Stop(id))
 
 			stat = ovr.Status(id)

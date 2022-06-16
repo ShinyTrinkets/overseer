@@ -34,8 +34,8 @@ type (
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
 	access    *sync.RWMutex
-	starLock  *sync.RWMutex
-	stateLock *sync.RWMutex
+	starLock  *sync.Mutex
+	stateLock *sync.Mutex
 	procs     sync.Map // Will contain [string]*Cmd
 	watchers  []chan *ProcessJSON
 	loggers   []chan *LogMsg
@@ -91,8 +91,8 @@ func NewOverseer() *Overseer {
 
 	ovr := &Overseer{
 		access:    &sync.RWMutex{},
-		starLock:  &sync.RWMutex{},
-		stateLock: &sync.RWMutex{},
+		starLock:  &sync.Mutex{},
+		stateLock: &sync.Mutex{},
 	}
 
 	sigChannel := make(chan os.Signal, 2)

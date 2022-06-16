@@ -65,7 +65,7 @@ const defaultDelayStart uint = 25
 // To create a new Cmd, call NewCmd.
 type Cmd struct {
 	*sync.Mutex
-	stateLock    *sync.Mutex
+	stateLock    *sync.RWMutex
 	Name         string      // Name of binary (command) to run; required!
 	Group        string      // Used by the manager (optional)
 	Args         []string    // Commands line arguments passed to the command (optional)
@@ -167,7 +167,7 @@ func NewCmd(name string, args ...interface{}) *Cmd {
 		DelayStart: defaultDelayStart,
 		RetryTimes: opts.RetryTimes,
 		Mutex:      &sync.Mutex{},
-		stateLock:  &sync.Mutex{},
+		stateLock:  &sync.RWMutex{},
 		status: Status{
 			Cmd:     name,
 			PID:     0,
@@ -247,23 +247,23 @@ func (c *Cmd) setState(state CmdState) {
 
 // IsInitialState returns true if the Cmd is in the initial state.
 func (c *Cmd) IsInitialState() bool {
-	c.stateLock.Lock()
-	defer c.stateLock.Unlock()
+	c.stateLock.RLock()
+	defer c.stateLock.RUnlock()
 	return c.State == INITIAL
 }
 
 // IsRunningState returns true if the Cmd is starting, or running.
 func (c *Cmd) IsRunningState() bool {
-	c.stateLock.Lock()
-	defer c.stateLock.Unlock()
+	c.stateLock.RLock()
+	defer c.stateLock.RUnlock()
 	return c.State == STARTING || c.State == RUNNING
 }
 
 // IsFinalState returns true if the Cmd is in a final state.
 // Final states are definitive and cannot be exited from.
 func (c *Cmd) IsFinalState() bool {
-	c.stateLock.Lock()
-	defer c.stateLock.Unlock()
+	c.stateLock.RLock()
+	defer c.stateLock.RUnlock()
 	if c.State == INTERRUPT || c.State == FINISHED || c.State == FATAL {
 		return true
 	}
