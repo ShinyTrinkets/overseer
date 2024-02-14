@@ -490,12 +490,13 @@ func (ovr *Overseer) Supervise(id string) int {
 							logChan <- &LogMsg{STDERR, line}
 						}
 					}
-				default:
-					if !ovr.IsRunning() || c.IsFinalState() {
-						// log.Info("Close STDOUT and STDERR loop:", Attrs{"id": id})
-						return
-					}
 				}
+				
+				if !ovr.IsRunning() || c.IsFinalState() {
+					// log.Info("Close STDOUT and STDERR loop:", Attrs{"id": id})
+					return
+				}
+				
 				time.Sleep(timeUnit)
 			}
 		}(c)
