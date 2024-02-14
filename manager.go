@@ -495,8 +495,8 @@ func (ovr *Overseer) Supervise(id string) int {
 						// log.Info("Close STDOUT and STDERR loop:", Attrs{"id": id})
 						return
 					}
-					time.Sleep(timeUnit)
 				}
+				time.Sleep(timeUnit)
 			}
 		}(c)
 
