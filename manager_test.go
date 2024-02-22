@@ -312,7 +312,43 @@ func TestOverseerSleep(t *testing.T) {
 	assert.True(ovr.Remove(id))
 }
 
-func TestOverseerWatchLogs(t *testing.T) {
+func TestOverseerWatchLogsSupervise(t *testing.T) {
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	opts := cmd.Options{Buffered: false, Streaming: true}
+	ovr.Add("echo", "echo", []string{"ECHO!"}, opts)
+	ovr.Add("ping", "ping", []string{"127.0.0.1", "-c", "1"}, opts)
+
+	assert.Equal(2, len(ovr.ListAll()))
+
+	lg := make(chan *cmd.LogMsg)
+	ovr.WatchLogs(lg)
+
+	messages := ""
+	lock := &sync.Mutex{}
+	go func() {
+		for logMsg := range lg {
+			lock.Lock()
+			assert.NotEqual(2, logMsg.Type) // Will this work on all platforms?
+			messages += logMsg.Text
+			lock.Unlock()
+		}
+	}()
+
+	ovr.Supervise("echo")
+	ovr.Supervise("ping")
+	// for some stupid reason, this wait is needed for CI
+	time.Sleep(timeUnit)
+
+	lock.Lock()
+	assert.True(strings.ContainsAny(messages, "ECHO!"))
+	assert.True(strings.ContainsAny(messages, "(127.0.0.1)"))
+	assert.True(strings.ContainsAny(messages, "ping statistics"))
+	lock.Unlock()
+}
+
+func TestOverseerWatchLogsSuperviseAll(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
