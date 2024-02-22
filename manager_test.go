@@ -608,3 +608,111 @@ func TestOverseerFinishRestart(t *testing.T) {
 		ovr.StopAll(false)
 	}
 }
+
+func TestOverseerStreamingCpuUsage(t *testing.T) {
+	// Use 'htop', 'System Monitor' or similar application to monitor cpu usage.
+	t.Skip("CPU usage is manually monitored. Skip by default")
+	opts := cmd.Options{
+		Dir:       "/tmp",
+		Streaming: true,
+	}
+
+	var ovr *cmd.Overseer
+	var wg sync.WaitGroup
+
+	ovr = cmd.NewOverseer()
+
+	allCmds := map[string]*cmd.Cmd{}
+	for nr := range [10]int{} {
+		nr := strconv.Itoa(nr)
+		id := fmt.Sprintf("id%s", nr)
+		c := ovr.Add(id, "tail", []string{"-F", "/dev/null"}, opts)
+		allCmds[string(nr)] = c
+	}
+
+	for _, c := range allCmds {
+		wg.Add(2)
+		go func(c *cmd.Cmd) {
+			defer wg.Done()
+
+			for stdOut := range c.Stdout {
+				fmt.Printf("%s\n", stdOut)
+			}
+			fmt.Printf("c.Stdout finished \n")
+		}(c)
+		go func(c *cmd.Cmd) {
+			defer wg.Done()
+
+			for stdErr := range c.Stderr {
+				fmt.Printf("%s\n", stdErr)
+			}
+			fmt.Printf("c.Stderr finished\n")
+		}(c)
+	}
+
+	watchOut := make(chan *cmd.ProcessJSON, 50)
+	ovr.WatchState(watchOut)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for status := range watchOut {
+			fmt.Printf("%s\n", status.State)
+		}
+		fmt.Printf("WatchState finished\n")
+	}()
+
+	// Handle logs from overseer
+	ovrLogOut := make(chan *cmd.LogMsg, 50)
+	ovr.WatchLogs(ovrLogOut)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for msg := range ovrLogOut {
+			fmt.Printf("%s\n", msg.Text)
+		}
+		fmt.Printf("WatchLogs finished\n")
+	}()
+
+	go func() {
+		fmt.Println("Starting Supervise")
+		ovr.SuperviseAll()
+		fmt.Println("Done Supervise")
+	}()
+
+	time.Sleep(6 * time.Second)
+
+	fmt.Println("Sending Soft Stop Command")
+	ovr.StopAll(false)
+
+	for name, c := range allCmds {
+		if c.IsFinalState() {
+			ovr.Remove(name)
+			delete(allCmds, name)
+		}
+	}
+
+	time.Sleep(6 * time.Second)
+
+	fmt.Println("Sending Hard Stop Command")
+	ovr.StopAll(true)
+
+	for name, c := range allCmds {
+		if c.IsFinalState() {
+			ovr.Remove(name)
+			delete(allCmds, name)
+		}
+	}
+
+	fmt.Println("Unwatching Logs")
+	ovr.UnWatchState(watchOut)
+	ovr.UnWatchLogs(ovrLogOut)
+	close(watchOut)
+	close(ovrLogOut)
+
+	fmt.Println("Sleeping for 60 seconds to give extra time for CPU monitoring")
+	time.Sleep(60 * time.Second)
+
+	fmt.Println("Waiting For log goroutines to finish.")
+	wg.Wait()
+	fmt.Println("Done. Commands should be finished.")
+}
