@@ -33,13 +33,14 @@ type (
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
-	access    *sync.RWMutex
-	starLock  *sync.Mutex
-	stateLock *sync.Mutex
-	procs     sync.Map // Will contain [string]*Cmd
-	watchers  []chan *ProcessJSON
-	loggers   []chan *LogMsg
-	state     OvrState
+	access     *sync.RWMutex
+	starLock   *sync.Mutex
+	stateLock  *sync.Mutex
+	procs      sync.Map // Will contain [string]*Cmd
+	watchers   []chan *ProcessJSON
+	loggers    []chan *LogMsg
+	sigChannel chan os.Signal
+	state      OvrState
 }
 
 // ProcessJSON public structure
@@ -95,12 +96,12 @@ func NewOverseer() *Overseer {
 		stateLock: &sync.Mutex{},
 	}
 
-	sigChannel := make(chan os.Signal, 2)
+	ovr.sigChannel = make(chan os.Signal, 2)
 	// Catch death signals and stop all child procs on exit
-	signal.Notify(sigChannel, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(ovr.sigChannel, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		// Catch all signals and possibly react different based on signal
-		for sig := range sigChannel {
+		for sig := range ovr.sigChannel {
 			log.Error("Received signal: %v!", Attrs{"sig": sig})
 			ovr.StopAll(false)
 		}
@@ -561,6 +562,19 @@ func (ovr *Overseer) StopAll(kill bool) {
 	}
 	ovr.setState(IDLE)
 	ovr.access.Unlock()
+}
+
+// Stops Overseer and any procs it is managing with SIGKILL.
+// This may be deferred after calling `NewOverseer`.
+// After `StopOverseer` is called, `NewOverseer` should be called
+// before adding any procs or calling `Supervise`/`SuperviseAll`.
+func (ovr *Overseer) StopOverseer() {
+	// Stop any running procs
+	ovr.StopAll(true)
+
+	// Stop relaying signals to sigChannel and close it
+	signal.Stop(ovr.sigChannel)
+	close(ovr.sigChannel)
 }
 
 // IsRunning returns True if SuperviseAll is running
