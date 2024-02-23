@@ -312,7 +312,43 @@ func TestOverseerSleep(t *testing.T) {
 	assert.True(ovr.Remove(id))
 }
 
-func TestOverseerWatchLogs(t *testing.T) {
+func TestOverseerWatchLogsSupervise(t *testing.T) {
+	assert := assert.New(t)
+	ovr := cmd.NewOverseer()
+
+	opts := cmd.Options{Buffered: false, Streaming: true}
+	ovr.Add("echo", "echo", []string{"ECHO!"}, opts)
+	ovr.Add("ping", "ping", []string{"127.0.0.1", "-c", "1"}, opts)
+
+	assert.Equal(2, len(ovr.ListAll()))
+
+	lg := make(chan *cmd.LogMsg)
+	ovr.WatchLogs(lg)
+
+	messages := ""
+	lock := &sync.Mutex{}
+	go func() {
+		for logMsg := range lg {
+			lock.Lock()
+			assert.NotEqual(2, logMsg.Type) // Will this work on all platforms?
+			messages += logMsg.Text
+			lock.Unlock()
+		}
+	}()
+
+	ovr.Supervise("echo")
+	ovr.Supervise("ping")
+	// for some stupid reason, this wait is needed for CI
+	time.Sleep(timeUnit)
+
+	lock.Lock()
+	assert.True(strings.ContainsAny(messages, "ECHO!"))
+	assert.True(strings.ContainsAny(messages, "(127.0.0.1)"))
+	assert.True(strings.ContainsAny(messages, "ping statistics"))
+	lock.Unlock()
+}
+
+func TestOverseerWatchLogsSuperviseAll(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
 
@@ -607,4 +643,112 @@ func TestOverseerFinishRestart(t *testing.T) {
 		}
 		ovr.StopAll(false)
 	}
+}
+
+func TestOverseerStreamingCpuUsage(t *testing.T) {
+	// Use 'htop', 'System Monitor' or similar application to monitor cpu usage.
+	t.Skip("CPU usage is manually monitored. Skip by default")
+	opts := cmd.Options{
+		Dir:       "/tmp",
+		Streaming: true,
+	}
+
+	var ovr *cmd.Overseer
+	var wg sync.WaitGroup
+
+	ovr = cmd.NewOverseer()
+
+	allCmds := map[string]*cmd.Cmd{}
+	for nr := range [10]int{} {
+		nr := strconv.Itoa(nr)
+		id := fmt.Sprintf("id%s", nr)
+		c := ovr.Add(id, "tail", []string{"-F", "/dev/null"}, opts)
+		allCmds[string(nr)] = c
+	}
+
+	for _, c := range allCmds {
+		wg.Add(2)
+		go func(c *cmd.Cmd) {
+			defer wg.Done()
+
+			for stdOut := range c.Stdout {
+				fmt.Printf("%s\n", stdOut)
+			}
+			fmt.Printf("c.Stdout finished \n")
+		}(c)
+		go func(c *cmd.Cmd) {
+			defer wg.Done()
+
+			for stdErr := range c.Stderr {
+				fmt.Printf("%s\n", stdErr)
+			}
+			fmt.Printf("c.Stderr finished\n")
+		}(c)
+	}
+
+	watchOut := make(chan *cmd.ProcessJSON, 50)
+	ovr.WatchState(watchOut)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for status := range watchOut {
+			fmt.Printf("%s\n", status.State)
+		}
+		fmt.Printf("WatchState finished\n")
+	}()
+
+	// Handle logs from overseer
+	ovrLogOut := make(chan *cmd.LogMsg, 50)
+	ovr.WatchLogs(ovrLogOut)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for msg := range ovrLogOut {
+			fmt.Printf("%s\n", msg.Text)
+		}
+		fmt.Printf("WatchLogs finished\n")
+	}()
+
+	go func() {
+		fmt.Println("Starting Supervise")
+		ovr.SuperviseAll()
+		fmt.Println("Done Supervise")
+	}()
+
+	time.Sleep(6 * time.Second)
+
+	fmt.Println("Sending Soft Stop Command")
+	ovr.StopAll(false)
+
+	for name, c := range allCmds {
+		if c.IsFinalState() {
+			ovr.Remove(name)
+			delete(allCmds, name)
+		}
+	}
+
+	time.Sleep(6 * time.Second)
+
+	fmt.Println("Sending Hard Stop Command")
+	ovr.StopAll(true)
+
+	for name, c := range allCmds {
+		if c.IsFinalState() {
+			ovr.Remove(name)
+			delete(allCmds, name)
+		}
+	}
+
+	fmt.Println("Unwatching Logs")
+	ovr.UnWatchState(watchOut)
+	ovr.UnWatchLogs(ovrLogOut)
+	close(watchOut)
+	close(ovrLogOut)
+
+	fmt.Println("Sleeping for 60 seconds to give extra time for CPU monitoring")
+	time.Sleep(60 * time.Second)
+
+	fmt.Println("Waiting For log goroutines to finish.")
+	wg.Wait()
+	fmt.Println("Done. Commands should be finished.")
 }

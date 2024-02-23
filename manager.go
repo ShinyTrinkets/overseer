@@ -472,31 +472,27 @@ func (ovr *Overseer) Supervise(id string) int {
 		// Async start
 		c.Start()
 
-		// Process all log changes
+		// Process Stdout log changes
 		go func(c *Cmd) {
-			for {
-				select {
-				case line := <-c.Stdout:
-					if len(line) > 0 {
-						log.Info(line)
-						for _, logChan := range ovr.loggers {
-							logChan <- &LogMsg{STDOUT, line}
-						}
-					}
-				case line := <-c.Stderr:
-					if len(line) > 0 {
-						log.Error(line)
-						for _, logChan := range ovr.loggers {
-							logChan <- &LogMsg{STDERR, line}
-						}
-					}
-				default:
-					if !ovr.IsRunning() || c.IsFinalState() {
-						// log.Info("Close STDOUT and STDERR loop:", Attrs{"id": id})
-						return
-					}
-					time.Sleep(timeUnit)
+			for line := range c.Stdout {
+				log.Info(line)
+				ovr.access.RLock()
+				for _, logChan := range ovr.loggers {
+					logChan <- &LogMsg{STDOUT, line}
 				}
+				ovr.access.RUnlock()
+			}
+		}(c)
+
+		// Process Stderr log changes
+		go func(c *Cmd) {
+			for line := range c.Stderr {
+				log.Info(line)
+				ovr.access.RLock()
+				for _, logChan := range ovr.loggers {
+					logChan <- &LogMsg{STDERR, line}
+				}
+				ovr.access.RUnlock()
 			}
 		}(c)
 
