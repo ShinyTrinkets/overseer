@@ -33,13 +33,14 @@ type (
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
-	access    *sync.RWMutex
-	starLock  *sync.Mutex
-	stateLock *sync.Mutex
-	procs     sync.Map // Will contain [string]*Cmd
-	watchers  []chan *ProcessJSON
-	loggers   []chan *LogMsg
-	state     OvrState
+	access     *sync.RWMutex
+	starLock   *sync.Mutex
+	stateLock  *sync.Mutex
+	procs      sync.Map // Will contain [string]*Cmd
+	watchers   []chan *ProcessJSON
+	loggers    []chan *LogMsg
+	signalChan chan os.Signal
+	state      OvrState
 }
 
 // ProcessJSON public structure
@@ -95,12 +96,13 @@ func NewOverseer() *Overseer {
 		stateLock: &sync.Mutex{},
 	}
 
-	sigChannel := make(chan os.Signal, 2)
+	ovr.signalChan = make(chan os.Signal, 2)
 	// Catch death signals and stop all child procs on exit
-	signal.Notify(sigChannel, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(ovr.signalChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		// Catch all signals and possibly react different based on signal
-		for sig := range sigChannel {
+		// Call StopOverseer() to exit this goroutine
+		for sig := range ovr.signalChan {
 			log.Error("Received signal: %v!", Attrs{"sig": sig})
 			ovr.StopAll(false)
 		}
@@ -473,28 +475,32 @@ func (ovr *Overseer) Supervise(id string) int {
 		c.Start()
 
 		// Process Stdout log changes
-		go func(c *Cmd) {
-			for line := range c.Stdout {
-				log.Info(line)
-				ovr.access.RLock()
-				for _, logChan := range ovr.loggers {
-					logChan <- &LogMsg{STDOUT, line}
+		if c.Stdout != nil {
+			go func(c *Cmd) {
+				for line := range c.Stdout {
+					log.Info(line)
+					ovr.access.RLock()
+					for _, logChan := range ovr.loggers {
+						logChan <- &LogMsg{STDOUT, line}
+					}
+					ovr.access.RUnlock()
 				}
-				ovr.access.RUnlock()
-			}
-		}(c)
+			}(c)
+		}
 
 		// Process Stderr log changes
-		go func(c *Cmd) {
-			for line := range c.Stderr {
-				log.Info(line)
-				ovr.access.RLock()
-				for _, logChan := range ovr.loggers {
-					logChan <- &LogMsg{STDERR, line}
+		if c.Stderr != nil {
+			go func(c *Cmd) {
+				for line := range c.Stderr {
+					log.Info(line)
+					ovr.access.RLock()
+					for _, logChan := range ovr.loggers {
+						logChan <- &LogMsg{STDERR, line}
+					}
+					ovr.access.RUnlock()
 				}
-				ovr.access.RUnlock()
-			}
-		}(c)
+			}(c)
+		}
 
 		// Block and wait for process to finish
 		stat = <-c.Start()
@@ -557,6 +563,19 @@ func (ovr *Overseer) StopAll(kill bool) {
 	}
 	ovr.setState(IDLE)
 	ovr.access.Unlock()
+}
+
+// Stops Overseer and any procs it is managing with SIGKILL.
+// This may be deferred after calling `NewOverseer`.
+// After `StopOverseer` is called, `NewOverseer` should be called
+// before adding any procs or calling `Supervise`/`SuperviseAll`.
+func (ovr *Overseer) StopOverseer() {
+	// Stop any running procs
+	ovr.StopAll(true)
+
+	// Stop relaying signals to sigChannel and close it
+	signal.Stop(ovr.signalChan)
+	close(ovr.signalChan)
 }
 
 // IsRunning returns True if SuperviseAll is running

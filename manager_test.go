@@ -4,12 +4,21 @@ package overseer_test
 // and go-test/deep for cmd_test
 // Not optimal
 import (
+	"bytes"
 	"container/list"
 	"fmt"
+	"io/ioutil"
+	"math"
 	"os"
+	"os/exec"
+	"path"
+	"regexp"
+	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -33,6 +42,7 @@ func TestOverseerBasic(t *testing.T) {
 	// check that Add returns a Cmd
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	id := "echo"
 	ovr.Add(id, "echo").Start()
@@ -65,6 +75,7 @@ func TestOverseerNegative(t *testing.T) {
 	// Negative testing. Try functions with wrong params.
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	assert.False(ovr.Remove("x"))
 	assert.NotNil(ovr.Stop("x"))
@@ -76,6 +87,7 @@ func TestOverseerOptions(t *testing.T) {
 	// Test all possible options when adding a proc
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	id := "ls"
 	opts := cmd.Options{
@@ -97,6 +109,7 @@ func TestOverseerAddRemove(t *testing.T) {
 	// Test adding and removing
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	rng := make([]int, 10)
 	for nr := range rng {
@@ -120,6 +133,7 @@ func TestOverseerAddRemove(t *testing.T) {
 func TestOverseerSignalStop(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	id := "ping"
 	opts := cmd.Options{DelayStart: 0}
@@ -156,6 +170,7 @@ func TestOverseerSupervise(t *testing.T) {
 	// Test single Supervise
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	opts := cmd.Options{Buffered: false, Streaming: false}
 	ovr.Add("echo", "echo", opts)
@@ -180,6 +195,7 @@ func TestOverseerSignalStopRestart(t *testing.T) {
 	// the retry number is reset to 0 on cmd.Stop()
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	id := "ping"
 	opts := cmd.Options{RetryTimes: 3}
@@ -226,6 +242,7 @@ func TestOverseerSuperviseAll(t *testing.T) {
 
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	id := "sleep"
 	ovr.Add(id, "sleep", []string{"1"})
@@ -281,6 +298,7 @@ func TestOverseerSuperviseAll(t *testing.T) {
 func TestOverseerSleep(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	id := "sleep"
 	opts := cmd.Options{Buffered: false, Streaming: false, DelayStart: 1}
@@ -315,6 +333,7 @@ func TestOverseerSleep(t *testing.T) {
 func TestOverseerWatchLogsSupervise(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	opts := cmd.Options{Buffered: false, Streaming: true}
 	ovr.Add("echo", "echo", []string{"ECHO!"}, opts)
@@ -351,6 +370,7 @@ func TestOverseerWatchLogsSupervise(t *testing.T) {
 func TestOverseerWatchLogsSuperviseAll(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	opts := cmd.Options{Buffered: false, Streaming: true}
 	ovr.Add("echo", "echo", []string{"ECHO!"}, opts)
@@ -386,6 +406,7 @@ func TestOverseerWatchLogsSuperviseAll(t *testing.T) {
 func TestOverseerInvalidProcs(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	ch := make(chan *cmd.ProcessJSON)
 	ovr.WatchState(ch)
@@ -435,6 +456,7 @@ func TestOverseerInvalidParams(t *testing.T) {
 	// Overseer.Add rejects invalid params
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	assert.NotNil(ovr.Add("valid1", "x", []string{"abc"}))
 	assert.NotNil(ovr.Add("valid2", "y", cmd.Options{Buffered: false, Streaming: false}))
@@ -458,6 +480,7 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
+	defer ovr.StopOverseer()
 
 	lock := &sync.Mutex{}
 	results := list.New()
@@ -533,6 +556,7 @@ func TestOverseersManyInstances(t *testing.T) {
 	rng := []int{10, 11, 12, 13, 14}
 	for _, nr := range rng {
 		ovr := cmd.NewOverseer()
+		defer ovr.StopOverseer()
 		assert.Equal(0, len(ovr.ListAll()))
 
 		nr := strconv.Itoa(nr)
@@ -564,6 +588,7 @@ func TestOverseersExit1(t *testing.T) {
 
 	for _, opt := range options {
 		ovr := cmd.NewOverseer()
+		defer ovr.StopOverseer()
 
 		id := "bash1"
 		ovr.Add("bash1", "bash", opt, []string{"-c", "echo 'First'; sleep 1; exit 1"})
@@ -587,6 +612,7 @@ func TestOverseerKillRestart(t *testing.T) {
 
 	for _, opt := range options {
 		ovr := cmd.NewOverseer()
+		defer ovr.StopOverseer()
 		id := "sleep1"
 		ovr.Add(id, "sleep", opt, []string{"10"})
 
@@ -621,6 +647,7 @@ func TestOverseerFinishRestart(t *testing.T) {
 
 	for _, opt := range options {
 		ovr := cmd.NewOverseer()
+		defer ovr.StopOverseer()
 
 		id := "ls1"
 		ovr.Add(id, "ls", opt, []string{"-la"})
@@ -645,9 +672,9 @@ func TestOverseerFinishRestart(t *testing.T) {
 	}
 }
 
-func TestOverseerStreamingCpuUsage(t *testing.T) {
+func TestOverseerStreamingCpuUsageManual(t *testing.T) {
 	// Use 'htop', 'System Monitor' or similar application to monitor cpu usage.
-	t.Skip("CPU usage is manually monitored. Skip by default")
+	t.Skip("Use this to manually monitor CPU usage. Skip by default")
 	opts := cmd.Options{
 		Dir:       "/tmp",
 		Streaming: true,
@@ -697,7 +724,6 @@ func TestOverseerStreamingCpuUsage(t *testing.T) {
 		fmt.Printf("WatchState finished\n")
 	}()
 
-	// Handle logs from overseer
 	ovrLogOut := make(chan *cmd.LogMsg, 50)
 	ovr.WatchLogs(ovrLogOut)
 	wg.Add(1)
@@ -745,6 +771,8 @@ func TestOverseerStreamingCpuUsage(t *testing.T) {
 	close(watchOut)
 	close(ovrLogOut)
 
+	ovr.StopOverseer()
+
 	fmt.Println("Sleeping for 60 seconds to give extra time for CPU monitoring")
 	time.Sleep(60 * time.Second)
 
@@ -752,3 +780,390 @@ func TestOverseerStreamingCpuUsage(t *testing.T) {
 	wg.Wait()
 	fmt.Println("Done. Commands should be finished.")
 }
+
+// This test supports an optional environment variable to define the
+// upper limit of CPU usage for this test process.
+// Use:
+// CPU_LIMIT=300 go test -v -race -run TestOverseerStreamingCpuUsageAuto
+func TestOverseerStreamingCpuUsageAuto(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("CPU usage test only supported on Linux. Use TestOverseerStreamingCpuUsageManual")
+	}
+	assert := assert.New(t)
+
+	var testDone atomic.Bool
+	testDone.Store(false)
+
+	// Get user defined CPU_LIMIT if provided
+	cpuLimitStr, ok := os.LookupEnv("CPU_LIMIT")
+	if !ok {
+		// Before CPU fix, usage would surpass 1000% on some systems
+		// From all 10 procs started in this test hitting 100%
+		cpuLimitStr = "100"
+	}
+	cpuLimit := parseFloat(cpuLimitStr)
+
+	// Goroutine to monitor CPU usage. Fail test if CPU usage > cpuLimit or 100% if not defined
+	pid := os.Getpid()
+	go func() {
+		for {
+			history = make(map[int]Stat)
+			cpuUsagePct := statFromProc(pid)
+			// If failing here you might need to set CPU_LIMIT env var
+			assert.LessOrEqual(cpuUsagePct, cpuLimit)
+			fmt.Printf("PID %d CPU Usage: %.2f%%\n", pid, cpuUsagePct)
+			time.Sleep(1 * time.Second)
+			if testDone.Load() {
+				return
+			}
+		}
+	}()
+
+	opts := cmd.Options{
+		Dir:       "/tmp",
+		Streaming: true,
+	}
+
+	var ovr *cmd.Overseer
+	var wg sync.WaitGroup
+
+	ovr = cmd.NewOverseer()
+
+	// Add 10 commands to overseer
+	allCmds := map[string]*cmd.Cmd{}
+	for nr := range [10]int{} {
+		nr := strconv.Itoa(nr)
+		id := fmt.Sprintf("id%s", nr)
+		c := ovr.Add(id, "tail", []string{"-F", "/dev/null"}, opts)
+		allCmds[string(nr)] = c
+	}
+
+	for _, c := range allCmds {
+		wg.Add(2)
+		// Iterate over cmd's Stdout
+		go func(c *cmd.Cmd) {
+			defer wg.Done()
+			for range c.Stdout {
+			}
+		}(c)
+		// Iterate over cmd's Stderr
+		go func(c *cmd.Cmd) {
+			defer wg.Done()
+			for range c.Stderr {
+			}
+		}(c)
+	}
+
+	// Watch state
+	watchOut := make(chan *cmd.ProcessJSON, 50)
+	ovr.WatchState(watchOut)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for range watchOut {
+		}
+	}()
+
+	// Watch logs
+	ovrLogOut := make(chan *cmd.LogMsg, 50)
+	ovr.WatchLogs(ovrLogOut)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for range ovrLogOut {
+		}
+	}()
+
+	go func() {
+		ovr.SuperviseAll()
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	ovr.StopAll(false)
+
+	for name, c := range allCmds {
+		if c.IsFinalState() {
+			ovr.Remove(name)
+			delete(allCmds, name)
+		}
+	}
+
+	time.Sleep(1 * time.Second)
+
+	ovr.StopAll(true)
+
+	for name, c := range allCmds {
+		if c.IsFinalState() {
+			ovr.Remove(name)
+			delete(allCmds, name)
+		}
+	}
+
+	ovr.UnWatchState(watchOut)
+	ovr.UnWatchLogs(ovrLogOut)
+	close(watchOut)
+	close(ovrLogOut)
+
+	ovr.StopOverseer()
+
+	time.Sleep(3 * time.Second)
+
+	wg.Wait()
+	testDone.Store(true)
+}
+
+func TestStopOverseerStreaming(t *testing.T) {
+	// The purpose of this test is to check if all
+	// overseer processes stop after calling
+	// StopOverseer when streaming output is selected
+	assert := assert.New(t)
+
+	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. This could mean a bug exists")
+
+	opts := cmd.Options{
+		Group: "A", Dir: "/",
+		Buffered: false, Streaming: true,
+		DelayStart: 1, RetryTimes: 1,
+	}
+
+	ovr := cmd.NewOverseer()
+	assert.Equal(0, len(ovr.ListAll()))
+
+	ovr.Add("id1", "sleep", []string{"10"}, opts)
+	assert.Equal(1, len(ovr.ListAll()))
+
+	go ovr.SuperviseAll()
+
+	// Give some time for cmds to start
+	time.Sleep(timeUnit)
+
+	// Should be at least 1 proc/overseer and 1 proc/cmd
+	assert.GreaterOrEqual(len(getOverseerProcs()), 2)
+
+	ovr.StopOverseer()
+
+	// Give some time for everything to close
+	time.Sleep(timeUnit)
+
+	stat := ovr.Status("id1")
+	assert.Equal("interrupted", stat.State)
+	assert.NotEqual(0, stat.PID)
+	assert.Equal(0, len(getOverseerProcs()))
+}
+
+func TestStopOverseerBuffered(t *testing.T) {
+	// The purpose of this test is to check if all
+	// overseer processes stop after calling
+	// StopOverseer when buffered output is selected
+	assert := assert.New(t)
+
+	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. This could mean a bug exists")
+
+	opts := cmd.Options{
+		Group: "A", Dir: "/",
+		Buffered: true, Streaming: false,
+		DelayStart: 1, RetryTimes: 1,
+	}
+
+	ovr := cmd.NewOverseer()
+	assert.Equal(0, len(ovr.ListAll()))
+
+	ovr.Add("id1", "sleep", []string{"10"}, opts)
+	assert.Equal(1, len(ovr.ListAll()))
+
+	go ovr.SuperviseAll()
+
+	// Give some time for cmds to start
+	time.Sleep(timeUnit)
+
+	// Should be at least 1 proc/overseer and 1 proc/cmd
+	assert.GreaterOrEqual(len(getOverseerProcs()), 2)
+
+	ovr.StopOverseer()
+
+	// Give some time for everything to close
+	time.Sleep(timeUnit)
+
+	stat := ovr.Status("id1")
+	assert.Equal("interrupted", stat.State)
+	assert.NotEqual(0, stat.PID)
+	assert.Equal(0, len(getOverseerProcs()))
+}
+
+func TestStopOverseerManyInstancesNoOutput(t *testing.T) {
+	// The purpose of this test is to check if all
+	// overseer processes stop after calling
+	// StopOverseer when no output is selected
+	// and when multiple instances of overseer exist
+	assert := assert.New(t)
+
+	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. This could mean a bug exists")
+
+	opts := cmd.Options{
+		Group: "A", Dir: "/",
+		Buffered: false, Streaming: false,
+		DelayStart: 1, RetryTimes: 1,
+	}
+
+	ovrs := map[string]*cmd.Overseer{}
+
+	rng := []int{10, 11, 12, 13, 14}
+	for _, nr := range rng {
+		ovr := cmd.NewOverseer()
+		assert.Equal(0, len(ovr.ListAll()))
+
+		nr := strconv.Itoa(nr)
+		id := fmt.Sprintf("id%s", nr)
+
+		ovr.Add(id, "sleep", []string{nr}, opts)
+		assert.Equal(1, len(ovr.ListAll()))
+
+		ovrs[id] = ovr
+	}
+
+	// Should be at least 1 proc/overseer
+	assert.GreaterOrEqual(len(getOverseerProcs()), len(ovrs))
+
+	for _, ovr := range ovrs {
+		go ovr.SuperviseAll()
+	}
+
+	// Give some time for cmds to start
+	time.Sleep(timeUnit)
+
+	// Should be at least 1 proc/overseer and 1 proc/cmd
+	assert.GreaterOrEqual(len(getOverseerProcs()), len(ovrs)*2)
+
+	for _, ovr := range ovrs {
+		ovr.StopOverseer()
+	}
+
+	// Give some time for everything to close
+	time.Sleep(timeUnit)
+
+	for id, ovr := range ovrs {
+		stat := ovr.Status(id)
+		assert.Equal("interrupted", stat.State)
+		assert.NotEqual(0, stat.PID)
+	}
+	assert.Equal(0, len(getOverseerProcs()))
+}
+
+/**********************************************************************************/
+// Test helper functions
+
+// Returns stack trace for Overseer goroutines
+func getOverseerProcs() []string {
+	overseerProcs := []string{}
+
+	// Get all goroutine stack traces
+	profile1 := pprof.Lookup("goroutine")
+	var buff bytes.Buffer
+	profile1.WriteTo(&buff, 2)
+
+	// Split by 'paragraph' which is the full stack trace for a single goroutine
+	re := regexp.MustCompile(`\r?\n\n`)
+	splitStr := re.Split(buff.String(), -1) // -1 to return all substrings
+
+	// Extract only overseer goroutines that aren't test processes
+	for _, line := range splitStr {
+		if strings.Contains(line, "overseer") && !strings.Contains(line, "test") {
+			overseerProcs = append(overseerProcs, line)
+		}
+	}
+	return overseerProcs
+}
+
+/**********************************************************************************/
+// PID CPU Monitor
+// adapted from https://github.com/struCoder/pidusage
+type Stat struct {
+	utime  float64
+	stime  float64
+	cutime float64
+	cstime float64
+	start  float64
+	uptime float64
+}
+
+func formatStdOut(stdout []byte, userfulIndex int) []string {
+	infoArr := strings.Split(string(stdout), "\n")[userfulIndex]
+	ret := strings.Fields(infoArr)
+	return ret
+}
+
+func parseFloat(val string) float64 {
+	floatVal, _ := strconv.ParseFloat(val, 64)
+	return floatVal
+}
+
+var history map[int]Stat
+var historyLock sync.Mutex
+
+func statFromProc(pid int) float64 {
+	clkTckStdout, err := exec.Command("getconf", "CLK_TCK").Output()
+	var clkTck float64
+	if err == nil {
+		clkTck = parseFloat(formatStdOut(clkTckStdout, 0)[0])
+	}
+
+	uptimeFileBytes, err := ioutil.ReadFile(path.Join("/proc", "uptime"))
+	if err != nil {
+		return math.MaxFloat64
+	}
+	uptime := parseFloat(strings.Split(string(uptimeFileBytes), " ")[0])
+
+	procStatFileBytes, err := ioutil.ReadFile(path.Join("/proc", strconv.Itoa(pid), "stat"))
+	if err != nil {
+		return math.MaxFloat64
+	}
+	splitAfter := strings.SplitAfter(string(procStatFileBytes), ")")
+
+	if len(splitAfter) == 0 || len(splitAfter) == 1 {
+		fmt.Printf("Can't find process with this PID: %d\n", pid)
+		return math.MaxFloat64
+	}
+	infos := strings.Split(splitAfter[1], " ")
+	stat := &Stat{
+		utime:  parseFloat(infos[12]),
+		stime:  parseFloat(infos[13]),
+		cutime: parseFloat(infos[14]),
+		cstime: parseFloat(infos[15]),
+		start:  parseFloat(infos[20]) / clkTck,
+		uptime: uptime,
+	}
+
+	_stime := 0.0
+	_utime := 0.0
+
+	historyLock.Lock()
+	defer historyLock.Unlock()
+
+	_history := history[pid]
+
+	if _history.stime != 0 {
+		_stime = _history.stime
+	}
+
+	if _history.utime != 0 {
+		_utime = _history.utime
+	}
+	total := stat.stime - _stime + stat.utime - _utime
+	total = total / clkTck
+
+	seconds := stat.start - uptime
+	if _history.uptime != 0 {
+		seconds = uptime - _history.uptime
+	}
+
+	seconds = math.Abs(seconds)
+	if seconds == 0 {
+		seconds = 1
+	}
+
+	history[pid] = *stat
+	return (total / seconds) * 100
+}
+
+/**********************************************************************************/
