@@ -43,7 +43,6 @@ To disable the logger completely, you need to create a Logger interface, with em
 * `Stop(id string)` - Stops the process by sending its process group a SIGTERM signal and resets RetryTimes to 0 so the process doesn't restart.
 * `Signal(id string, sig syscall.Signal)` - Sends an OS signal to the process group.
 * `StopAll(kill bool)` - Cycles and stops all processes. If "kill" is false, all procs receive SIGTERM to allow a graceful shut down. If "kill" is true, all procs receive SIGKILL and they are killed immediately.
-* `StopOverseer()` - Stops Overseer and any procs it is managing with SIGKILL. This may be deferred after calling `NewOverseer`. After `StopOverseer` is called, `NewOverseer` should be called before adding any procs or calling `Supervise`/`SuperviseAll`.
 
 ## Cmd API
 

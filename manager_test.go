@@ -42,7 +42,6 @@ func TestOverseerBasic(t *testing.T) {
 	// check that Add returns a Cmd
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	id := "echo"
 	ovr.Add(id, "echo").Start()
@@ -75,7 +74,6 @@ func TestOverseerNegative(t *testing.T) {
 	// Negative testing. Try functions with wrong params.
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	assert.False(ovr.Remove("x"))
 	assert.NotNil(ovr.Stop("x"))
@@ -87,7 +85,6 @@ func TestOverseerOptions(t *testing.T) {
 	// Test all possible options when adding a proc
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	id := "ls"
 	opts := cmd.Options{
@@ -109,7 +106,6 @@ func TestOverseerAddRemove(t *testing.T) {
 	// Test adding and removing
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	rng := make([]int, 10)
 	for nr := range rng {
@@ -133,7 +129,6 @@ func TestOverseerAddRemove(t *testing.T) {
 func TestOverseerSignalStop(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	id := "ping"
 	opts := cmd.Options{DelayStart: 0}
@@ -170,7 +165,6 @@ func TestOverseerSupervise(t *testing.T) {
 	// Test single Supervise
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	opts := cmd.Options{Buffered: false, Streaming: false}
 	ovr.Add("echo", "echo", opts)
@@ -195,7 +189,6 @@ func TestOverseerSignalStopRestart(t *testing.T) {
 	// the retry number is reset to 0 on cmd.Stop()
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	id := "ping"
 	opts := cmd.Options{RetryTimes: 3}
@@ -242,7 +235,6 @@ func TestOverseerSuperviseAll(t *testing.T) {
 
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	id := "sleep"
 	ovr.Add(id, "sleep", []string{"1"})
@@ -298,7 +290,6 @@ func TestOverseerSuperviseAll(t *testing.T) {
 func TestOverseerSleep(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	id := "sleep"
 	opts := cmd.Options{Buffered: false, Streaming: false, DelayStart: 1}
@@ -333,7 +324,6 @@ func TestOverseerSleep(t *testing.T) {
 func TestOverseerWatchLogsSupervise(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	opts := cmd.Options{Buffered: false, Streaming: true}
 	ovr.Add("echo", "echo", []string{"ECHO!"}, opts)
@@ -370,7 +360,6 @@ func TestOverseerWatchLogsSupervise(t *testing.T) {
 func TestOverseerWatchLogsSuperviseAll(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	opts := cmd.Options{Buffered: false, Streaming: true}
 	ovr.Add("echo", "echo", []string{"ECHO!"}, opts)
@@ -406,7 +395,6 @@ func TestOverseerWatchLogsSuperviseAll(t *testing.T) {
 func TestOverseerInvalidProcs(t *testing.T) {
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	ch := make(chan *cmd.ProcessJSON)
 	ovr.WatchState(ch)
@@ -456,7 +444,6 @@ func TestOverseerInvalidParams(t *testing.T) {
 	// Overseer.Add rejects invalid params
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	assert.NotNil(ovr.Add("valid1", "x", []string{"abc"}))
 	assert.NotNil(ovr.Add("valid2", "y", cmd.Options{Buffered: false, Streaming: false}))
@@ -480,7 +467,6 @@ func TestOverseerWatchUnwatch(t *testing.T) {
 
 	assert := assert.New(t)
 	ovr := cmd.NewOverseer()
-	defer ovr.StopOverseer()
 
 	lock := &sync.Mutex{}
 	results := list.New()
@@ -556,7 +542,6 @@ func TestOverseersManyInstances(t *testing.T) {
 	rng := []int{10, 11, 12, 13, 14}
 	for _, nr := range rng {
 		ovr := cmd.NewOverseer()
-		defer ovr.StopOverseer()
 		assert.Equal(0, len(ovr.ListAll()))
 
 		nr := strconv.Itoa(nr)
@@ -588,7 +573,6 @@ func TestOverseersExit1(t *testing.T) {
 
 	for _, opt := range options {
 		ovr := cmd.NewOverseer()
-		defer ovr.StopOverseer()
 
 		id := "bash1"
 		ovr.Add("bash1", "bash", opt, []string{"-c", "echo 'First'; sleep 1; exit 1"})
@@ -612,7 +596,6 @@ func TestOverseerKillRestart(t *testing.T) {
 
 	for _, opt := range options {
 		ovr := cmd.NewOverseer()
-		defer ovr.StopOverseer()
 		id := "sleep1"
 		ovr.Add(id, "sleep", opt, []string{"10"})
 
@@ -647,7 +630,6 @@ func TestOverseerFinishRestart(t *testing.T) {
 
 	for _, opt := range options {
 		ovr := cmd.NewOverseer()
-		defer ovr.StopOverseer()
 
 		id := "ls1"
 		ovr.Add(id, "ls", opt, []string{"-la"})
@@ -770,8 +752,6 @@ func TestOverseerStreamingCpuUsageManual(t *testing.T) {
 	ovr.UnWatchLogs(ovrLogOut)
 	close(watchOut)
 	close(ovrLogOut)
-
-	ovr.StopOverseer()
 
 	fmt.Println("Sleeping for 60 seconds to give extra time for CPU monitoring")
 	time.Sleep(60 * time.Second)
@@ -905,18 +885,16 @@ func TestOverseerStreamingCpuUsageAuto(t *testing.T) {
 	close(watchOut)
 	close(ovrLogOut)
 
-	ovr.StopOverseer()
-
 	time.Sleep(3 * time.Second)
 
 	wg.Wait()
 	testDone.Store(true)
 }
 
-func TestStopOverseerStreaming(t *testing.T) {
+func TestOverseerProcsStreaming(t *testing.T) {
 	// The purpose of this test is to check if all
-	// overseer processes stop after calling
-	// StopOverseer when streaming output is selected
+	// overseer processes stop after all
+	// managed procs have stopped
 	assert := assert.New(t)
 
 	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. This could mean a bug exists")
@@ -941,7 +919,7 @@ func TestStopOverseerStreaming(t *testing.T) {
 	// Should be at least 1 proc/overseer and 1 proc/cmd
 	assert.GreaterOrEqual(len(getOverseerProcs()), 2)
 
-	ovr.StopOverseer()
+	ovr.StopAll(true)
 
 	// Give some time for everything to close
 	time.Sleep(timeUnit)
@@ -952,10 +930,10 @@ func TestStopOverseerStreaming(t *testing.T) {
 	assert.Equal(0, len(getOverseerProcs()))
 }
 
-func TestStopOverseerBuffered(t *testing.T) {
+func TestOverseerProcsBuffered(t *testing.T) {
 	// The purpose of this test is to check if all
-	// overseer processes stop after calling
-	// StopOverseer when buffered output is selected
+	// overseer processes stop after all
+	// managed procs have stopped
 	assert := assert.New(t)
 
 	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. This could mean a bug exists")
@@ -980,7 +958,7 @@ func TestStopOverseerBuffered(t *testing.T) {
 	// Should be at least 1 proc/overseer and 1 proc/cmd
 	assert.GreaterOrEqual(len(getOverseerProcs()), 2)
 
-	ovr.StopOverseer()
+	ovr.StopAll(true)
 
 	// Give some time for everything to close
 	time.Sleep(timeUnit)
@@ -991,10 +969,10 @@ func TestStopOverseerBuffered(t *testing.T) {
 	assert.Equal(0, len(getOverseerProcs()))
 }
 
-func TestStopOverseerManyInstancesNoOutput(t *testing.T) {
+func TestOverseerProcsManyInstancesNoOutput(t *testing.T) {
 	// The purpose of this test is to check if all
-	// overseer processes stop after calling
-	// StopOverseer when no output is selected
+	// overseer processes stop after all managed procs
+	// have stopped when no output is selected
 	// and when multiple instances of overseer exist
 	assert := assert.New(t)
 
@@ -1022,8 +1000,8 @@ func TestStopOverseerManyInstancesNoOutput(t *testing.T) {
 		ovrs[id] = ovr
 	}
 
-	// Should be at least 1 proc/overseer
-	assert.GreaterOrEqual(len(getOverseerProcs()), len(ovrs))
+	// Should be no overseer procs as SuperviseAll hasn't been called
+	assert.Equal(len(getOverseerProcs()), 0)
 
 	for _, ovr := range ovrs {
 		go ovr.SuperviseAll()
@@ -1036,7 +1014,7 @@ func TestStopOverseerManyInstancesNoOutput(t *testing.T) {
 	assert.GreaterOrEqual(len(getOverseerProcs()), len(ovrs)*2)
 
 	for _, ovr := range ovrs {
-		ovr.StopOverseer()
+		ovr.StopAll(true)
 	}
 
 	// Give some time for everything to close
@@ -1048,6 +1026,118 @@ func TestStopOverseerManyInstancesNoOutput(t *testing.T) {
 		assert.NotEqual(0, stat.PID)
 	}
 	assert.Equal(0, len(getOverseerProcs()))
+}
+
+func TestOverseerSystemSIGINT(t *testing.T) {
+	// The purpose of this test is to ensure
+	// SIGINT is handled properly and all
+	// overseer procs are stopped gracefully
+	assert := assert.New(t)
+
+	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. This could mean a bug exists")
+
+	opts := cmd.Options{
+		Group: "A", Dir: "/",
+		Buffered: false, Streaming: true,
+		DelayStart: 1, RetryTimes: 1,
+	}
+
+	ovr := cmd.NewOverseer()
+	assert.Equal(0, len(ovr.ListAll()))
+
+	ovr.Add("id1", "sleep", []string{"10"}, opts)
+	assert.Equal(1, len(ovr.ListAll()))
+
+	lg := make(chan *cmd.LogMsg)
+	ovr.WatchLogs(lg)
+
+	messages := ""
+	lock := &sync.Mutex{}
+	go func() {
+		for logMsg := range lg {
+			lock.Lock()
+			messages += logMsg.Text
+			lock.Unlock()
+		}
+	}()
+
+	go ovr.SuperviseAll()
+
+	// Give some time for cmds to start
+	time.Sleep(timeUnit)
+
+	// Should be at least 1 proc/overseer and 1 proc/cmd
+	assert.GreaterOrEqual(len(getOverseerProcs()), 2)
+
+	// Send SIGINT to PID
+	syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+
+	// Give some time for everything to close
+	time.Sleep(timeUnit)
+
+	stat := ovr.Status("id1")
+	assert.Equal("interrupted", stat.State)
+	assert.NotEqual(0, stat.PID)
+	assert.Equal(0, len(getOverseerProcs()))
+	lock.Lock()
+	assert.True(strings.ContainsAny(messages, "Received signal: map[sig:interrupt]!"))
+	lock.Unlock()
+}
+
+func TestOverseerSystemSIGTERM(t *testing.T) {
+	// The purpose of this test is to ensure
+	// SIGTERM is handled properly and all
+	// overseer procs are stopped gracefully
+	assert := assert.New(t)
+
+	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. This could mean a bug exists")
+
+	opts := cmd.Options{
+		Group: "A", Dir: "/",
+		Buffered: false, Streaming: true,
+		DelayStart: 1, RetryTimes: 1,
+	}
+
+	ovr := cmd.NewOverseer()
+	assert.Equal(0, len(ovr.ListAll()))
+
+	ovr.Add("id1", "sleep", []string{"10"}, opts)
+	assert.Equal(1, len(ovr.ListAll()))
+
+	lg := make(chan *cmd.LogMsg)
+	ovr.WatchLogs(lg)
+
+	messages := ""
+	lock := &sync.Mutex{}
+	go func() {
+		for logMsg := range lg {
+			lock.Lock()
+			messages += logMsg.Text
+			lock.Unlock()
+		}
+	}()
+
+	go ovr.SuperviseAll()
+
+	// Give some time for cmds to start
+	time.Sleep(timeUnit)
+
+	// Should be at least 1 proc/overseer and 1 proc/cmd
+	assert.GreaterOrEqual(len(getOverseerProcs()), 2)
+
+	// Send SIGTERM to PID
+	syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+
+	// Give some time for everything to close
+	time.Sleep(timeUnit)
+
+	stat := ovr.Status("id1")
+	assert.Equal("interrupted", stat.State)
+	assert.NotEqual(0, stat.PID)
+	assert.Equal(0, len(getOverseerProcs()))
+	lock.Lock()
+	assert.True(strings.ContainsAny(messages, "Received signal: map[sig:terminated]!"))
+	lock.Unlock()
 }
 
 /**********************************************************************************/

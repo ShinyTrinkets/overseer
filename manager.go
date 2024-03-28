@@ -33,14 +33,13 @@ type (
 // Overseer structure.
 // For instantiating, it's best to use the NewOverseer() function.
 type Overseer struct {
-	access     *sync.RWMutex
-	starLock   *sync.Mutex
-	stateLock  *sync.Mutex
-	procs      sync.Map // Will contain [string]*Cmd
-	watchers   []chan *ProcessJSON
-	loggers    []chan *LogMsg
-	signalChan chan os.Signal
-	state      OvrState
+	access    *sync.RWMutex
+	starLock  *sync.Mutex
+	stateLock *sync.Mutex
+	procs     sync.Map // Will contain [string]*Cmd
+	watchers  []chan *ProcessJSON
+	loggers   []chan *LogMsg
+	state     OvrState
 }
 
 // ProcessJSON public structure
@@ -95,18 +94,6 @@ func NewOverseer() *Overseer {
 		starLock:  &sync.Mutex{},
 		stateLock: &sync.Mutex{},
 	}
-
-	ovr.signalChan = make(chan os.Signal, 2)
-	// Catch death signals and stop all child procs on exit
-	signal.Notify(ovr.signalChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		// Catch all signals and possibly react different based on signal
-		// Call StopOverseer() to exit this goroutine
-		for sig := range ovr.signalChan {
-			log.Error("Received signal: %v!", Attrs{"sig": sig})
-			ovr.StopAll(false)
-		}
-	}()
 
 	return ovr
 }
@@ -343,6 +330,28 @@ func (ovr *Overseer) SuperviseAll() {
 	ovr.starLock.Lock()
 	defer ovr.starLock.Unlock()
 
+	signalChan := make(chan os.Signal, 2)
+	// Catch death signals and stop all child procs on exit
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	defer func() {
+		signal.Stop(signalChan)
+		close(signalChan)
+	}()
+
+	go func() {
+		// Catch all signals and possibly react different based on signal
+		for sig := range signalChan {
+			log.Error("Received signal: %v!", Attrs{"sig": sig})
+			ovr.access.RLock()
+			for _, logChan := range ovr.loggers {
+				logChan <- &LogMsg{STDERR, fmt.Sprintf("Received signal: %v!", Attrs{"sig": sig})}
+			}
+			ovr.access.RUnlock()
+			ovr.StopAll(false)
+		}
+	}()
+
 	// Launch Cmd. Lock is needed because Supervise deletes from the map of Cmds.
 	ovr.procs.Range(func(id, c interface{}) bool {
 		wg.Add(1)
@@ -563,19 +572,6 @@ func (ovr *Overseer) StopAll(kill bool) {
 	}
 	ovr.setState(IDLE)
 	ovr.access.Unlock()
-}
-
-// Stops Overseer and any procs it is managing with SIGKILL.
-// This may be deferred after calling `NewOverseer`.
-// After `StopOverseer` is called, `NewOverseer` should be called
-// before adding any procs or calling `Supervise`/`SuperviseAll`.
-func (ovr *Overseer) StopOverseer() {
-	// Stop any running procs
-	ovr.StopAll(true)
-
-	// Stop relaying signals to sigChannel and close it
-	signal.Stop(ovr.signalChan)
-	close(ovr.signalChan)
 }
 
 // IsRunning returns True if SuperviseAll is running
