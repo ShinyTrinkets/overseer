@@ -95,17 +95,6 @@ func NewOverseer() *Overseer {
 		stateLock: &sync.Mutex{},
 	}
 
-	sigChannel := make(chan os.Signal, 2)
-	// Catch death signals and stop all child procs on exit
-	signal.Notify(sigChannel, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		// Catch all signals and possibly react different based on signal
-		for sig := range sigChannel {
-			log.Error("Received signal: %v!", Attrs{"sig": sig})
-			ovr.StopAll(false)
-		}
-	}()
-
 	return ovr
 }
 
@@ -341,6 +330,28 @@ func (ovr *Overseer) SuperviseAll() {
 	ovr.starLock.Lock()
 	defer ovr.starLock.Unlock()
 
+	signalChan := make(chan os.Signal, 2)
+	// Catch death signals and stop all child procs on exit
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	defer func() {
+		signal.Stop(signalChan)
+		close(signalChan)
+	}()
+
+	go func() {
+		// Catch all signals and possibly react different based on signal
+		for sig := range signalChan {
+			log.Error("Received signal: %v!", Attrs{"sig": sig})
+			ovr.access.RLock()
+			for _, logChan := range ovr.loggers {
+				logChan <- &LogMsg{STDERR, fmt.Sprintf("Received signal: %v!", Attrs{"sig": sig})}
+			}
+			ovr.access.RUnlock()
+			ovr.StopAll(false)
+		}
+	}()
+
 	// Launch Cmd. Lock is needed because Supervise deletes from the map of Cmds.
 	ovr.procs.Range(func(id, c interface{}) bool {
 		wg.Add(1)
@@ -473,28 +484,32 @@ func (ovr *Overseer) Supervise(id string) int {
 		c.Start()
 
 		// Process Stdout log changes
-		go func(c *Cmd) {
-			for line := range c.Stdout {
-				log.Info(line)
-				ovr.access.RLock()
-				for _, logChan := range ovr.loggers {
-					logChan <- &LogMsg{STDOUT, line}
+		if c.Stdout != nil {
+			go func(c *Cmd) {
+				for line := range c.Stdout {
+					log.Info(line)
+					ovr.access.RLock()
+					for _, logChan := range ovr.loggers {
+						logChan <- &LogMsg{STDOUT, line}
+					}
+					ovr.access.RUnlock()
 				}
-				ovr.access.RUnlock()
-			}
-		}(c)
+			}(c)
+		}
 
 		// Process Stderr log changes
-		go func(c *Cmd) {
-			for line := range c.Stderr {
-				log.Info(line)
-				ovr.access.RLock()
-				for _, logChan := range ovr.loggers {
-					logChan <- &LogMsg{STDERR, line}
+		if c.Stderr != nil {
+			go func(c *Cmd) {
+				for line := range c.Stderr {
+					log.Info(line)
+					ovr.access.RLock()
+					for _, logChan := range ovr.loggers {
+						logChan <- &LogMsg{STDERR, line}
+					}
+					ovr.access.RUnlock()
 				}
-				ovr.access.RUnlock()
-			}
-		}(c)
+			}(c)
+		}
 
 		// Block and wait for process to finish
 		stat = <-c.Start()
