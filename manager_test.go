@@ -895,9 +895,12 @@ func TestOverseerProcsStreaming(t *testing.T) {
 	// The purpose of this test is to check if all
 	// overseer processes stop after all
 	// managed procs have stopped
-	assert := assert.New(t)
+	if runtime.GOOS != "linux" {
+		t.Skip("This test is only supported on Linux.")
+	}
 
-	// assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. There may be a bug.")
+	assert := assert.New(t)
+	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. There may be a bug.")
 
 	opts := cmd.Options{
 		Group: "A", Dir: "/",
@@ -934,9 +937,12 @@ func TestOverseerProcsBuffered(t *testing.T) {
 	// The purpose of this test is to check if all
 	// overseer processes stop after all
 	// managed procs have stopped
-	assert := assert.New(t)
+	if runtime.GOOS != "linux" {
+		t.Skip("This test is only supported on Linux.")
+	}
 
-	// assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. There may be a bug.")
+	assert := assert.New(t)
+	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. There may be a bug.")
 
 	opts := cmd.Options{
 		Group: "A", Dir: "/",
@@ -974,9 +980,12 @@ func TestOverseerProcsManyInstancesNoOutput(t *testing.T) {
 	// overseer processes stop after all managed procs
 	// have stopped when no output is selected
 	// and when multiple instances of overseer exist
-	assert := assert.New(t)
+	if runtime.GOOS != "linux" {
+		t.Skip("This test is only supported on Linux.")
+	}
 
-	// assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. There may be a bug.")
+	assert := assert.New(t)
+	assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. There may be a bug.")
 
 	opts := cmd.Options{
 		Group: "A", Dir: "/",
@@ -1032,9 +1041,10 @@ func TestOverseerSystemSIGINT(t *testing.T) {
 	// The purpose of this test is to ensure
 	// SIGINT is handled properly and all
 	// overseer procs are stopped gracefully
+	if runtime.GOOS != "linux" {
+		t.Skip("This test is only supported on Linux.")
+	}
 	assert := assert.New(t)
-
-	// assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. There may be a bug.")
 
 	opts := cmd.Options{
 		Group: "A", Dir: "/",
