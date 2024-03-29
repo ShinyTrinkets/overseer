@@ -1,5 +1,11 @@
 # Overseer changelog
 
+## v0.6
+* Close STDOUT and STDERR channels
+* SuperviseAll() fixes, SIGINT and SIGTERM fixes
+* Fixed a CPU usage bug while supervising
+* Thank you @kentlallen for all the fixes!
+
 ## v0.5
 * Breaking: renamed ovr.Watch -> WatchStatus, ovr.UnWatch -> UnWatchStatus
 * Using Go 1.17
