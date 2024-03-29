@@ -1098,9 +1098,10 @@ func TestOverseerSystemSIGTERM(t *testing.T) {
 	// The purpose of this test is to ensure
 	// SIGTERM is handled properly and all
 	// overseer procs are stopped gracefully
+	if runtime.GOOS != "linux" {
+		t.Skip("This test is only supported on Linux.")
+	}
 	assert := assert.New(t)
-
-	// assert.Equal(0, len(getOverseerProcs()), "Overseer procs exist from other tests. There may be a bug.")
 
 	opts := cmd.Options{
 		Group: "A", Dir: "/",
