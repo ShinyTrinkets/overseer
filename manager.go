@@ -532,12 +532,12 @@ func (ovr *Overseer) Supervise(id string) int {
 		delayStart += uint(bOff.Duration())
 
 		if retryTimes < 1 {
-			log.Error("Process exited abnormally. Stopped. Err: %s",
-				stat.Error, Attrs{"id": id, "cmd": cmdArg})
+			log.Error("Process exited abnormally. Stopped.",
+				fmt.Sprintf("Err: %v. %s", stat.Error, Attrs{"id": id, "cmd": cmdArg}))
 			break
 		} else {
-			log.Error("Process exited abnormally. Err: %s. Restarting [%d]. ",
-				stat.Error, retryTimes+1, Attrs{"id": id, "cmd": cmdArg})
+			log.Error("Process exited abnormally.",
+				fmt.Sprintf("Error: %v, Restarting [%d]. %s", stat.Error, retryTimes+1, Attrs{"id": id, "cmd": cmdArg}))
 		}
 	}
 
