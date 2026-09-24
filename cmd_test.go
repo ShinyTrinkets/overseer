@@ -1203,3 +1203,44 @@ func TestCmdWrongArgs(t *testing.T) {
 		t.Errorf("got PID %d, expected non-zero", s.PID)
 	}
 }
+
+func TestCmdCloneKeepsLineBufferSize(t *testing.T) {
+	lineContent := cmd.DEFAULT_LINE_BUFFER_SIZE * 2
+	longLine := make([]byte, lineContent) // "AAA..."
+	for i := 0; i < lineContent; i++ {
+		longLine[i] = 'A'
+	}
+
+	tmpfile, err := ioutil.TempFile("", "cmd.TestCmdCloneKeepsLineBufferSize")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.Remove(tmpfile.Name())
+	})
+	if _, err := tmpfile.Write(longLine); err != nil {
+		t.Fatal(err)
+	}
+	if err := tmpfile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	original := cmd.NewCmd("./testdata/cat", []string{tmpfile.Name(), "1"},
+		cmd.Options{
+			Streaming:      true,
+			LineBufferSize: cmd.DEFAULT_LINE_BUFFER_SIZE * 2,
+		})
+	clone := original.Clone()
+
+	cloneStatus := clone.Start()
+
+	select {
+	case curLine := <-clone.Stdout:
+		if len(curLine) != lineContent {
+			t.Errorf("got %d stdout bytes from clone, expected %d", len(curLine), lineContent)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("timeout reading streaming output")
+	}
+	<-cloneStatus
+}

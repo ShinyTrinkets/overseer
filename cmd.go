@@ -208,17 +208,23 @@ func NewCmd(name string, args ...interface{}) *Cmd {
 // Cmd is one-use only, so if you need to re-start a Cmd,
 // you need to Clone it.
 func (c *Cmd) Clone() *Cmd {
+	var lineBufferSize uint
+	if c.stdoutStream != nil {
+		lineBufferSize = uint(c.stdoutStream.bufSize)
+	}
+
 	clone := NewCmd(
 		c.Name,
 		c.Args,
 		Options{
-			Group:      c.Group,
-			Dir:        c.Dir,
-			Env:        c.Env,
-			DelayStart: c.DelayStart,
-			RetryTimes: c.RetryTimes,
-			Buffered:   c.stdoutBuf != nil,
-			Streaming:  c.stdoutStream != nil,
+			Group:          c.Group,
+			Dir:            c.Dir,
+			Env:            c.Env,
+			DelayStart:     c.DelayStart,
+			RetryTimes:     c.RetryTimes,
+			Buffered:       c.stdoutBuf != nil,
+			Streaming:      c.stdoutStream != nil,
+			LineBufferSize: lineBufferSize,
 		},
 	)
 	return clone
